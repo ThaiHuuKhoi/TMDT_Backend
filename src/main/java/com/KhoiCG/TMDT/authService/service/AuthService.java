@@ -101,4 +101,36 @@ public class AuthService {
                 .avatar(null) // Cập nhật sau nếu có trường avatar
                 .build();
     }
+
+    public UserResponse updateProfile(UserUpdateRequest request) {
+        // 1. Lấy email user hiện tại từ Token
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        // 2. Tìm User
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // 3. Cập nhật thông tin (Chỉ update nếu có gửi lên)
+        if (request.getName() != null && !request.getName().isEmpty()) {
+            user.setName(request.getName());
+        }
+
+        // Nếu bạn muốn update Avatar (Lưu URL ảnh)
+        if (request.getAvatar() != null) {
+            // user.setAvatar(request.getAvatar());
+            // ⚠️ Lưu ý: Bạn cần thêm trường avatar vào Entity User nếu chưa có
+        }
+
+        // 4. Lưu vào DB
+        User updatedUser = userRepo.save(user);
+
+        // 5. Trả về DTO mới
+        return UserResponse.builder()
+                .id(String.valueOf(updatedUser.getId()))
+                .name(updatedUser.getName())
+                .email(updatedUser.getEmail())
+                .role(updatedUser.getRole())
+                // .avatar(updatedUser.getAvatar())
+                .build();
+    }
 }

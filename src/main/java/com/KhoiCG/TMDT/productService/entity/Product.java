@@ -21,14 +21,16 @@ public class Product {
     private Long id;
 
     private String name;
-    private Long price; // Java Long thay cho Int để tránh tràn số tiền
+    private Long price;
     private String description;
+    private Double averageRating = 0.0;
+    private Integer reviewCount = 0;
 
     @Column(unique = true)
     private String slug;
 
     @Convert(converter = StringListConverter.class)
-    @Column(columnDefinition = "TEXT") // MySQL lưu JSON dưới dạng TEXT hoặc JSON
+    @Column(columnDefinition = "TEXT")
     private List<String> colors;
 
     @Convert(converter = StringMapConverter.class)

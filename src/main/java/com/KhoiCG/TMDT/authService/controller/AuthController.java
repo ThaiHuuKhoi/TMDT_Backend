@@ -1,9 +1,6 @@
 package com.KhoiCG.TMDT.authService.controller;
 
-import com.KhoiCG.TMDT.authService.dto.AuthResponse;
-import com.KhoiCG.TMDT.authService.dto.LoginRequest;
-import com.KhoiCG.TMDT.authService.dto.RegisterRequest;
-import com.KhoiCG.TMDT.authService.dto.UserResponse;
+import com.KhoiCG.TMDT.authService.dto.*;
 import com.KhoiCG.TMDT.authService.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,5 +33,10 @@ public class AuthController {
     public ResponseEntity<UserResponse> getProfile() {
         // Service tự lấy User từ SecurityContext
         return ResponseEntity.ok(authService.getCurrentUser());
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<UserResponse> updateProfile(@RequestBody UserUpdateRequest request) {
+        return ResponseEntity.ok(authService.updateProfile(request));
     }
 }

@@ -73,7 +73,9 @@ public class SecurityConfig {
 								"/api/sessions/**",
 								"/api/orders/**",
 								"/api/webhook",
-								"/api/error"
+								"/api/error",
+								"/api/banners/**",
+								"/api/reviews/**"
 						).permitAll()
 						.anyRequest()
 //						.permitAll()
