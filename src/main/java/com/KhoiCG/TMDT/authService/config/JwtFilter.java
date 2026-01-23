@@ -1,55 +1,74 @@
 package com.KhoiCG.TMDT.authService.config;
-//
 
 import com.KhoiCG.TMDT.authService.service.JwtService;
-import com.KhoiCG.TMDT.authService.service.MyUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+
 @Component
+@RequiredArgsConstructor // 1. Tự tạo constructor cho các field final
+@Slf4j
 public class JwtFilter extends OncePerRequestFilter {
 
-    @Autowired
-    JwtService jwtService;
+    private final JwtService jwtService;
 
-    @Autowired
-    ApplicationContext context;
+    @Lazy // 2. Giải quyết Circular Dependency mà không cần dùng ApplicationContext
+    private final UserDetailsService userDetailsService;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain
+    ) throws ServletException, IOException {
 
-        String authHeader = request.getHeader("Authorization");
-        String token = null;
-        String userName = null;
+        final String authHeader = request.getHeader("Authorization");
+        final String token;
+        final String userEmail;
 
-        if(authHeader != null && authHeader.startsWith("Bearer ")){
+        // 3. Fail-fast: Nếu không có header thì bỏ qua ngay
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        try {
             token = authHeader.substring(7);
-            userName = jwtService.extractUserName(token);
-        }
+            userEmail = jwtService.extractUserName(token); // Có thể throw ExpiredJwtException
 
-        if(userName != null && SecurityContextHolder.getContext().getAuthentication()==null){
+            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                // Vẫn query DB (An toàn nhưng chậm)
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
-            UserDetails userDetails = context.getBean(MyUserDetailsService.class).loadUserByUsername(userName);
-
-            if(jwtService.validateToken(token, userDetails)){
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                if (jwtService.validateToken(token, userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
+        } catch (Exception e) {
+            // 4. Log lỗi nhưng không crash ứng dụng, để Spring Security xử lý tiếp (401)
+            log.error("Cannot set user authentication: {}", e.getMessage());
         }
+
         filterChain.doFilter(request, response);
     }
 }

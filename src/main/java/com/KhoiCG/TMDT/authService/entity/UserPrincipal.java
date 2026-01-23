@@ -1,41 +1,37 @@
 package com.KhoiCG.TMDT.authService.entity;
 
-import java.util.Collection;
-import java.util.Collections;
-
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-public class UserPrincipal implements UserDetails{
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
-	/**
-	 *
-	 */
-	private static final long serialVersionUID = 1L;
-
+@Data
+@AllArgsConstructor
+public class UserPrincipal implements UserDetails { // Có thể implement thêm OAuth2User nếu muốn gộp chung
 
 	private User user;
-
-	public UserPrincipal(User user) {
-this.user=user;
-	}
+	// private Map<String, Object> attributes; // Dành cho OAuth2 sau này nếu cần
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
-		// Nếu role trong DB null thì default là USER, ngược lại lấy role thực tế
-		String roleName = (user.getRole() == null) ? "USER" : user.getRole();
-		return Collections.singleton(new SimpleGrantedAuthority("ROLE_" + roleName));
+		// Mặc định role là USER nếu null
+		String roleName = (user.getRole() == null || user.getRole().isEmpty()) ? "USER" : user.getRole();
+		// Spring Security yêu cầu prefix "ROLE_" cho các role chuẩn
+		return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + roleName));
 	}
+
 	@Override
 	public String getPassword() {
-		
 		return user.getPassword();
 	}
 
 	@Override
 	public String getUsername() {
-	
 		return user.getEmail();
 	}
 
@@ -48,17 +44,14 @@ this.user=user;
 	public boolean isAccountNonLocked() {
 		return true;
 	}
-	
-	
+
 	@Override
 	public boolean isCredentialsNonExpired() {
 		return true;
 	}
-	
 
 	@Override
 	public boolean isEnabled() {
 		return true;
 	}
-
 }

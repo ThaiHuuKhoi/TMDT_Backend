@@ -9,7 +9,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class AuthResponse {
-    private String token;
-    // Có thể thêm refreshToken hoặc tokenType vào đây sau này
+public class UserResponse {
+    private String id;
+    private String name;
+    private String email;
+    private String role;
+    private String avatar;
 }

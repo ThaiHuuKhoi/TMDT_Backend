@@ -1,28 +1,32 @@
 package com.KhoiCG.TMDT.authService.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-
-@Data
-@Table(name = "users")
+@Getter
+@Setter
+@Builder // Giúp tạo object User dễ dàng: User.builder().name("A").build()
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
+@Table(name = "users")
 public class User {
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(unique = true) // Email không được trùng
+	@Column(unique = true, nullable = false)
 	private String email;
 
-	private String password;
+	private String password; // Null nếu login bằng Google/Facebook
+
 	private String name;
-	private String role;
+
+	private String role; // Ví dụ: "USER", "ADMIN"
 
 	@Enumerated(EnumType.STRING)
 	private AuthProvider provider;
 
-	private String providerId;
+	private String providerId; // ID từ Google/Facebook trả về
 }

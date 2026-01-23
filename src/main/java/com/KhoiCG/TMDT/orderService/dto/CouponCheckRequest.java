@@ -5,5 +5,5 @@ import lombok.Data;
 @Data
 public class CouponCheckRequest {
     private String code;
-    private Double orderAmount;
+    private Long orderAmount;
 }

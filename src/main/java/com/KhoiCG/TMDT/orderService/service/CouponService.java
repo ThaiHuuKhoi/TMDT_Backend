@@ -15,57 +15,47 @@ public class CouponService {
 
     private final CouponRepository couponRepository;
 
-    // 1. Tạo Coupon mới (Dành cho Admin)
     public Coupon createCoupon(Coupon coupon) {
+        // Nên uppercase mã code để user nhập thường/hoa đều được
+        coupon.setCode(coupon.getCode().toUpperCase());
         return couponRepository.save(coupon);
     }
 
-    // 2. Kiểm tra và tính toán giảm giá (Dành cho User)
     public CouponResponse applyCoupon(CouponCheckRequest request) {
-        // Tìm coupon trong DB
-        Coupon coupon = couponRepository.findByCode(request.getCode())
+        // Tìm mã (đã uppercase)
+        Coupon coupon = couponRepository.findByCode(request.getCode().toUpperCase())
                 .orElse(null);
 
-        // -- VALIDATION LAYER --
-
-        // A. Mã không tồn tại hoặc bị tắt
+        // 1. Validate
         if (coupon == null || !coupon.isActive()) {
-            return new CouponResponse(false, "Mã giảm giá không tồn tại hoặc đã bị khóa.", 0.0, request.getOrderAmount());
+            return new CouponResponse(false, "Mã không hợp lệ", 0L, request.getOrderAmount());
         }
-
-        // B. Mã hết hạn
         if (coupon.getExpiryDate() != null && LocalDateTime.now().isAfter(coupon.getExpiryDate())) {
-            return new CouponResponse(false, "Mã giảm giá đã hết hạn.", 0.0, request.getOrderAmount());
+            return new CouponResponse(false, "Mã đã hết hạn", 0L, request.getOrderAmount());
         }
-
-        // C. Hết lượt dùng
         if (coupon.getMaxUsage() != null && coupon.getUsedCount() >= coupon.getMaxUsage()) {
-            return new CouponResponse(false, "Mã giảm giá đã hết lượt sử dụng.", 0.0, request.getOrderAmount());
+            return new CouponResponse(false, "Mã đã hết lượt dùng", 0L, request.getOrderAmount());
         }
-
-        // D. Đơn hàng chưa đủ điều kiện tối thiểu
         if (coupon.getMinOrderValue() != null && request.getOrderAmount() < coupon.getMinOrderValue()) {
-            return new CouponResponse(false, "Đơn hàng phải từ " + coupon.getMinOrderValue() + "đ mới được áp dụng.", 0.0, request.getOrderAmount());
+            return new CouponResponse(false, "Đơn hàng chưa đạt giá trị tối thiểu", 0L, request.getOrderAmount());
         }
 
-        // -- CALCULATION LAYER --
-        double discount = 0.0;
+        // 2. Tính toán (Dùng Long toàn bộ)
+        long discount = 0;
+        long orderAmount = request.getOrderAmount().longValue(); // Convert Double -> Long nếu DTO vẫn là Double
 
         if ("PERCENT".equals(coupon.getDiscountType())) {
-            // Giảm theo % (Ví dụ: 10%)
-            discount = request.getOrderAmount() * (coupon.getDiscountValue() / 100);
-        } else if ("FIXED".equals(coupon.getDiscountType())) {
-            // Giảm thẳng tiền (Ví dụ: 50k)
+            // Công thức: (Tổng * % ) / 100
+            discount = (orderAmount * coupon.getDiscountValue()) / 100;
+        } else {
             discount = coupon.getDiscountValue();
         }
 
-        // Đảm bảo số tiền giảm không vượt quá giá trị đơn hàng (Không âm tiền)
-        if (discount > request.getOrderAmount()) {
-            discount = request.getOrderAmount();
-        }
+        // Không giảm quá giá trị đơn hàng
+        if (discount > orderAmount) discount = orderAmount;
 
-        double finalPrice = request.getOrderAmount() - discount;
+        long finalPrice = orderAmount - discount;
 
-        return new CouponResponse(true, "Áp dụng mã thành công!", discount, finalPrice);
+        return new CouponResponse(true, "Áp dụng thành công", discount, finalPrice);
     }
 }

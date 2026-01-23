@@ -1,31 +1,25 @@
 package com.KhoiCG.TMDT.authService.service;
 
-import com.KhoiCG.TMDT.authService.entity.User;
 import com.KhoiCG.TMDT.authService.entity.UserPrincipal;
 import com.KhoiCG.TMDT.authService.repository.UserRepo;
-import org.springframework.beans.factory.annotation.Autowired;
-
-
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor // 1. Tự động tạo constructor cho userRepo
 public class MyUserDetailsService implements UserDetailsService {
 
-	@Autowired
-	private UserRepo repo;
-
+	private final UserRepo userRepo;
 
 	@Override
+	@Transactional // 2. Giữ kết nối DB để tránh lỗi Lazy Loading khi map sang UserPrincipal
 	public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-		// Tìm bằng Email
-		User user = repo.findByEmail(email)
+		return userRepo.findByEmail(email)
+				.map(UserPrincipal::new) // 3. Code gọn hơn: Nếu tìm thấy User -> New UserPrincipal(user)
 				.orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
-
-		return new UserPrincipal(user);
 	}
-
 }

@@ -80,7 +80,7 @@ public class StripeService {
             CouponCheckRequest checkReq = new CouponCheckRequest();
             checkReq.setCode(couponCode);
             // CouponService đang tính theo Double, ta convert sang Double để tính
-            checkReq.setOrderAmount((double) totalAmount);
+            checkReq.setOrderAmount( totalAmount);
 
             CouponResponse couponRes = couponService.applyCoupon(checkReq);
 

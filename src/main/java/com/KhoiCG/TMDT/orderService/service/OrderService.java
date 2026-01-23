@@ -137,51 +137,49 @@ public class OrderService {
     }
 
     // --- 3. Biểu đồ thống kê (Phần khó nhất) ---
+    // ... (Phần trên giữ nguyên)
+
+    // --- 3. Biểu đồ thống kê (Phần khó nhất) ---
     public List<OrderChartResponse> getOrderChart() {
         LocalDateTime now = LocalDateTime.now();
+        // Lấy 6 tháng gần nhất (tính cả tháng hiện tại)
         LocalDateTime sixMonthsAgo = now.minusMonths(5).withDayOfMonth(1).withHour(0).withMinute(0);
 
-        // Xây dựng Pipeline Aggregation tương đương code Node.js
         Aggregation aggregation = Aggregation.newAggregation(
-                // 1. $match: Lọc theo ngày
-                Aggregation.match(Criteria.where("createdAt").gte(sixMonthsAgo).lte(now)),
-
-                // 2. $project: Tách Year, Month để group
+                Aggregation.match(Criteria.where("createdAt").gte(sixMonthsAgo)),
                 Aggregation.project()
                         .andExpression("year(createdAt)").as("year")
                         .andExpression("month(createdAt)").as("month")
                         .and("status").as("status"),
-
-                // 3. $group: Gom nhóm & Tính toán
                 Aggregation.group("year", "month")
                         .count().as("total")
                         .sum(
                                 org.springframework.data.mongodb.core.aggregation.ConditionalOperators
-                                        .when(Criteria.where("status").is("success"))
+                                        .when(Criteria.where("status").is("COMPLETED")) // Lưu ý: check đúng status string (COMPLETED/success?)
                                         .then(1).otherwise(0)
                         ).as("successful"),
-
-                // 4. $sort
                 Aggregation.sort(Sort.Direction.ASC, "year", "month")
         );
 
-        // Chạy query
         AggregationResults<Map> results = mongoTemplate.aggregate(aggregation, "orders", Map.class);
         List<Map> rawData = results.getMappedResults();
 
-        // 5. Xử lý logic điền dữ liệu (Fill missing months) bằng Java (giống vòng lặp for trong Node.js)
+        // Xử lý dữ liệu an toàn hơn
         List<OrderChartResponse> finalResult = new ArrayList<>();
-        String[] monthNames = {"", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+        String[] monthNames = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
         for (int i = 5; i >= 0; i--) {
             LocalDateTime d = now.minusMonths(i);
             int year = d.getYear();
             int month = d.getMonthValue();
 
-            // Tìm xem trong rawData có tháng này không
-            Map match = rawData.stream().filter(m ->
-                    (int)m.get("year") == year && (int)m.get("month") == month
-            ).findFirst().orElse(null);
+            // Tìm trong rawData một cách an toàn
+            Map match = rawData.stream().filter(m -> {
+                // MongoDB trả về số có thể là Integer hoặc Long, nên dùng Number.intValue()
+                int mYear = ((Number) m.get("year")).intValue();
+                int mMonth = ((Number) m.get("month")).intValue();
+                return mYear == year && mMonth == month;
+            }).findFirst().orElse(null);
 
             long total = match != null ? ((Number) match.get("total")).longValue() : 0;
             long successful = match != null ? ((Number) match.get("successful")).longValue() : 0;

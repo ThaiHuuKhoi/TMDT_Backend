@@ -13,17 +13,21 @@ public class Coupon {
     @Id
     private String id;
 
-    @Indexed(unique = true) // Đảm bảo mã không trùng nhau
-    private String code;    // Ví dụ: SALE50, TET2026
+    @Indexed(unique = true)
+    private String code;
 
-    private String discountType; // "PERCENT" (giảm %) hoặc "FIXED" (giảm tiền mặt)
-    private Double discountValue; // Giá trị (10 nếu là 10%, 50000 nếu là 50k)
+    private String discountType; // "PERCENT" hoặc "FIXED"
 
-    private Double minOrderValue; // Đơn tối thiểu để áp dụng (VD: 200k)
+    // ⚠️ QUAN TRỌNG: Dùng Long cho tiền/phần trăm
+    // Nếu PERCENT: 10 = 10%
+    // Nếu FIXED: 50000 = 50.000 VNĐ
+    private Long discountValue;
 
-    private Integer maxUsage;  // Tổng số lượt dùng tối đa
-    private Integer usedCount = 0; // Số lượt đã dùng (Mặc định là 0)
+    private Long minOrderValue; // Ví dụ: 200000
 
-    private LocalDateTime expiryDate; // Ngày hết hạn
-    private boolean isActive = true;  // Trạng thái bật/tắt
+    private Integer maxUsage;
+    private Integer usedCount = 0;
+
+    private LocalDateTime expiryDate;
+    private boolean isActive = true;
 }
