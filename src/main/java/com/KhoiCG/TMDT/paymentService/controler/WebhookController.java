@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/webhook")
+@RequestMapping("api/webhook")
 @RequiredArgsConstructor
 @Slf4j
 public class WebhookController {

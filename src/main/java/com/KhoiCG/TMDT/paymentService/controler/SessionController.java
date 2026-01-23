@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/sessions")
+@RequestMapping("api/sessions")
 @RequiredArgsConstructor
 public class SessionController {
 

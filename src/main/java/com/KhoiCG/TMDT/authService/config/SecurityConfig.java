@@ -68,12 +68,12 @@ public class SecurityConfig {
 						.requestMatchers(
 								"/api/auth/**",
 								"/oauth2/**",
-								"/login/oauth2/**",
-								"/products/**",
-								"/sessions/**",
-								"/orders/**",
-								"/webhook",
-								"/error"
+								"/api/login/oauth2/**",
+								"/api/products/**",
+								"/api/sessions/**",
+								"/api/orders/**",
+								"/api/webhook",
+								"/api/error"
 						).permitAll()
 						.anyRequest()
 //						.permitAll()
