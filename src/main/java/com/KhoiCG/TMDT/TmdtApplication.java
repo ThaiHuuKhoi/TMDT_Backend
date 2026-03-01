@@ -14,7 +14,6 @@ public class TmdtApplication {
 	@Bean
 	public ObjectMapper objectMapper() {
 		ObjectMapper mapper = new ObjectMapper();
-		// Đăng ký module để nó hiểu được LocalDateTime (nếu có dùng ngày giờ)
 		return mapper;
 	}
 
