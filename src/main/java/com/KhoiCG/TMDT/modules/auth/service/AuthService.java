@@ -62,8 +62,13 @@ public class AuthService {
             log.error("Error sending Kafka event: {}", e.getMessage());
         }
 
-        String token = jwtService.generateToken(savedUser.getEmail());
-        return AuthResponse.builder().accessToken(token).build();
+        String accessToken = jwtService.generateToken(savedUser.getEmail());
+        String refreshToken = jwtService.generateRefreshToken(savedUser.getEmail());
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .build();
     }
 
     @Transactional
