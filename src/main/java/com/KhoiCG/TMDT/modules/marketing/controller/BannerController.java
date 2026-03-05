@@ -1,39 +1,36 @@
 package com.KhoiCG.TMDT.modules.marketing.controller;
 
-import com.KhoiCG.TMDT.modules.marketing.entity.Banner;
-import com.KhoiCG.TMDT.modules.marketing.repository.BannerRepository;
+import com.KhoiCG.TMDT.modules.marketing.dto.BannerRequest;
+import com.KhoiCG.TMDT.modules.marketing.dto.BannerResponse;
+import com.KhoiCG.TMDT.modules.marketing.service.BannerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
 @RestController
 @RequestMapping("/api/banners")
 @RequiredArgsConstructor
 public class BannerController {
 
-    private final BannerRepository bannerRepository;
+    private final BannerService bannerService;
 
-    // 1. PUBLIC: Lấy danh sách banner để hiển thị trang chủ
     @GetMapping
-    public ResponseEntity<List<Banner>> getActiveBanners() {
-        return ResponseEntity.ok(bannerRepository.findByIsActiveTrueOrderByDisplayOrderAsc());
+    public ResponseEntity<List<BannerResponse>> getActiveBanners() {
+        return ResponseEntity.ok(bannerService.getActiveBanners());
     }
 
-    // 2. ADMIN: Thêm banner mới
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Banner> createBanner(@RequestBody Banner banner) {
-        return ResponseEntity.ok(bannerRepository.save(banner));
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<BannerResponse> createBanner(@RequestBody BannerRequest request) {
+        return ResponseEntity.ok(bannerService.saveBanner(request));
     }
 
-    // 3. ADMIN: Xóa banner
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<?> deleteBanner(@PathVariable String id) {
-        bannerRepository.deleteById(id);
-        return ResponseEntity.ok("Deleted");
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<String> deleteBanner(@PathVariable Long id) {
+        bannerService.deleteBanner(id);
+        return ResponseEntity.ok("Banner đã được xóa thành công");
     }
 }

@@ -1,12 +1,13 @@
 package com.KhoiCG.TMDT.modules.product.service;
 
 import com.KhoiCG.TMDT.modules.product.dto.CreateProductRequest;
-import com.KhoiCG.TMDT.modules.product.dto.StripeProductDto;
-import com.KhoiCG.TMDT.modules.product.entity.Category;
-import com.KhoiCG.TMDT.modules.product.entity.Product;
-import com.KhoiCG.TMDT.modules.product.repository.CategoryRepository;
-import com.KhoiCG.TMDT.modules.product.repository.ProductRepository;
+import com.KhoiCG.TMDT.modules.product.dto.ProductResponse;
+import com.KhoiCG.TMDT.modules.product.entity.*;
+import com.KhoiCG.TMDT.modules.product.enums.ProductSortType;
+import com.KhoiCG.TMDT.modules.product.mapper.ProductMapper;
+import com.KhoiCG.TMDT.modules.product.repository.*;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,67 +20,108 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ProductService {
 
+    private final ProductMapper productMapper;
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductVariantRepository variantRepository;
+    private final AttributeRepository attributeRepository;
+    private final AttributeValueRepository attributeValueRepository;
 //    private final KafkaTemplate<String, Object> kafkaTemplate;
 
+    @Transactional // Bắt buộc phải có để rollback nếu 1 bước bị lỗi
     public Product createProduct(CreateProductRequest req) {
 
-        // 1. Validate Colors vs Images
-        if (req.getColors() == null || req.getColors().isEmpty()) {
-            throw new IllegalArgumentException("Colors array is required!");
-        }
-        // ... giữ logic validate ảnh ...
-
-        // 2. Xử lý Category: Frontend gửi Slug -> Ta tìm Category Entity
+        // 1. Tìm Category
         Category category = categoryRepository.findBySlug(req.getCategorySlug())
-                .orElseThrow(() -> new RuntimeException("Category not found with slug: " + req.getCategorySlug()));
+                .orElseThrow(() -> new RuntimeException("Category không tồn tại: " + req.getCategorySlug()));
 
-        // 3. Tạo Slug cho Product
-        String productSlug = toSlug(req.getName());
-        if (productRepository.existsBySlug(productSlug)) {
-            productSlug += "-" + System.currentTimeMillis();
+        // 2. Xử lý trùng lặp SKU trước khi tạo
+        for (CreateProductRequest.VariantDto v : req.getVariants()) {
+            if (variantRepository.existsBySku(v.getSku())) {
+                throw new RuntimeException("SKU đã tồn tại trong hệ thống: " + v.getSku());
+            }
         }
 
-        // 4. MAP DTO -> ENTITY (Giữ nguyên cấu trúc cũ của bạn)
-        Product product = new Product();
-        product.setName(req.getName());
-        product.setSlug(productSlug);
+        // 3. Khởi tạo đối tượng Product chính
+        String productSlug = generateUniqueSlug(req.getName());
 
-        // ⚠️ Chuyển đổi an toàn: Double (DTO) -> Long (Entity)
-        // Nếu req.getPrice() là 19.99 -> lưu thành 19 (hoặc logic nhân 100 tùy bạn)
-        // Ở đây mình ép kiểu trực tiếp về Long theo code cũ của bạn
-        product.setPrice(req.getPrice().longValue());
+        Product product = Product.builder()
+                .name(req.getName())
+                .slug(productSlug)
+                .description(req.getDescription())
+                .shortDescription(req.getShortDescription())
+                .category(category)
+                .status(ProductStatus.ACTIVE)
+                .variants(new ArrayList<>())
+                .images(new ArrayList<>())
+                .build();
 
-        product.setShortDescription(req.getShortDescription());
-        product.setDescription(req.getDescription());
-        product.setCategory(category); // Set object Category đã tìm được
-        product.setColors(req.getColors());
-        product.setSizes(req.getSizes());
-        product.setImages(req.getImages());
-        product.setIsPopular(false);
+        // 4. Xử lý Hình ảnh chung (Product Images)
+        if (req.getImageUrls() != null) {
+            for (int i = 0; i < req.getImageUrls().size(); i++) {
+                ProductImage image = ProductImage.builder()
+                        .product(product)
+                        .url(req.getImageUrls().get(i))
+                        .isMain(i == 0)
+                        .displayOrder(i)
+                        .build();
+                product.getImages().add(image);
+            }
+        }
 
+        // 5. Xử lý các Biến thể (Variants) & Thuộc tính (Attributes)
+        for (CreateProductRequest.VariantDto variantDto : req.getVariants()) {
+
+            // Khởi tạo Biến thể
+            ProductVariant variant = ProductVariant.builder()
+                    .product(product)
+                    .sku(variantDto.getSku())
+                    .price(variantDto.getPrice())
+                    .stockQuantity(variantDto.getStockQuantity())
+                    .attributeValues(new ArrayList<>())
+                    .build();
+
+            // Duyệt qua map Thuộc tính (VD: "Color" -> "Red", "Size" -> "XL")
+            for (Map.Entry<String, String> entry : variantDto.getAttributes().entrySet()) {
+                String attrName = entry.getKey();
+                String attrValueStr = entry.getValue();
+
+                // 5.1 Lấy hoặc Tạo mới Attribute (VD: "Color")
+                Attribute attribute = attributeRepository.findByNameIgnoreCase(attrName)
+                        .orElseGet(() -> attributeRepository.save(Attribute.builder().name(attrName).build()));
+
+                // 5.2 Lấy hoặc Tạo mới AttributeValue (VD: "Red" thuộc "Color")
+                AttributeValue attributeValue = attributeValueRepository
+                        .findByAttributeIdAndValueIgnoreCase(attribute.getId(), attrValueStr)
+                        .orElseGet(() -> attributeValueRepository.save(
+                                AttributeValue.builder().attribute(attribute).value(attrValueStr).build()
+                        ));
+
+                // Gắn giá trị thuộc tính vào biến thể này
+                variant.getAttributeValues().add(attributeValue);
+            }
+
+            product.getVariants().add(variant);
+        }
+
+        // 6. Lưu toàn bộ (Nhờ CascadeType.ALL, Product, Images và Variants sẽ tự động được lưu cùng nhau)
         Product savedProduct = productRepository.save(product);
 
-        // 3. Send Kafka Event
-        StripeProductDto stripeDto = new StripeProductDto(
-                savedProduct.getId().toString(),
-                savedProduct.getName(),
-                savedProduct.getPrice()
-        );
-//        kafkaTemplate.send("product.created", stripeDto);
+        //   kafkaTemplate.send("product.created", stripeDto);
 
         return savedProduct;
     }
 
     // --- Get Products with Filters ---
-    public List<Product> getProducts(String categorySlug, String search, String sortStr, int limit) {
+    public List<ProductResponse> getProducts(String categorySlug, String search, String sortStr, int limit) {
 
         // 1. Xây dựng Specification (Dynamic Query WHERE clause)
         Specification<Product> spec = (root, query, cb) -> {
@@ -100,19 +142,15 @@ public class ProductService {
         };
 
         // 2. Xử lý Sort
-        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt"); // Default
-        if ("asc".equals(sortStr)) {
-            sort = Sort.by(Sort.Direction.ASC, "price");
-        } else if ("desc".equals(sortStr)) {
-            sort = Sort.by(Sort.Direction.DESC, "price");
-        } else if ("oldest".equals(sortStr)) {
-            sort = Sort.by(Sort.Direction.ASC, "createdAt");
-        }
+        Sort sort = ProductSortType.getSortStrategy(sortStr);
 
         // 3. Xử lý Limit (Phân trang)
         Pageable pageable = limit > 0 ? PageRequest.of(0, limit, sort) : PageRequest.of(0, 100, sort);
 
-        return productRepository.findAll(spec, pageable).getContent();
+        List<Product> products = productRepository.findAll(spec, pageable).getContent();
+        return products.stream()
+                .map(productMapper::toProductResponse)
+                .collect(Collectors.toList());
     }
 
     // --- Delete Product ---
@@ -128,37 +166,35 @@ public class ProductService {
     }
 
     // --- Update, Get One... (Tương tự) ---
-    public Product getProduct(Long id) {
-        return productRepository.findById(id).orElseThrow(() -> new RuntimeException("Not found"));
+    public ProductResponse getProduct(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Not found"));
+        return productMapper.toProductResponse(product);
     }
 
-    public List<Product> getRelatedProducts(String currentProductId) {
-        // 1. Lấy sản phẩm hiện tại để biết nó thuộc Category nào
-        Product currentProduct = getProduct(Long.valueOf(currentProductId));
-        Long categoryId = Long.valueOf(currentProduct.getCategory().getId());
+    public List<ProductResponse> getRelatedProducts(Long currentProductId) {
+        ProductResponse currentProduct = getProduct(currentProductId);
+        Long categoryId = currentProduct.getCategory().getId();
 
-        // 2. Lấy 4 sản phẩm cùng loại (trừ chính nó)
-        // PageRequest.of(0, 4) -> Lấy trang đầu, 4 phần tử
-        List<Product> related = productRepository.findByCategory_IdAndIdNot(
-                String.valueOf(categoryId),
-                currentProductId,
-                PageRequest.of(0, 4)
+        List<Product> related = productRepository.findByCategoryIdAndIdNot(
+                categoryId, currentProductId, PageRequest.of(0, 4)
         );
-
-        // Mẹo nhỏ: Nếu muốn ngẫu nhiên (Random), bạn có thể lấy 20 cái rồi dùng Java Collections.shuffle()
-        // Nhưng để hiệu năng cao thì lấy 4 cái mới nhất là ổn.
-
-        return related;
+        return related.stream().map(productMapper::toProductResponse).toList();
     }
+
+    private String generateUniqueSlug(String name) {
+        String slug = toSlug(name);
+        if (productRepository.existsBySlug(slug)) {
+            slug += "-" + System.currentTimeMillis();
+        }
+        return slug;
+    }
+
     private String toSlug(String input) {
         if (input == null) return "";
-        // Thay thế khoảng trắng bằng dấu gạch ngang
         String nowhitespace = Pattern.compile("[\\s]").matcher(input).replaceAll("-");
-        // Chuẩn hóa chuỗi (loại bỏ dấu tiếng Việt)
         String normalized = Normalizer.normalize(nowhitespace, Normalizer.Form.NFD);
-        // Loại bỏ các ký tự đặc biệt không phải chữ cái, số hoặc gạch ngang
         String slug = Pattern.compile("[^\\w-]").matcher(normalized).replaceAll("");
-        // Chuyển về chữ thường
         return slug.toLowerCase(Locale.ENGLISH);
     }
 }

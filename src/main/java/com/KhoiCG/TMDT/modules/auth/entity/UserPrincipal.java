@@ -1,5 +1,8 @@
 package com.KhoiCG.TMDT.modules.auth.entity;
 
+import com.KhoiCG.TMDT.modules.user.entity.AuthProvider;
+import com.KhoiCG.TMDT.modules.user.entity.User;
+import com.KhoiCG.TMDT.modules.user.entity.UserProvider;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
@@ -18,15 +21,20 @@ public class UserPrincipal implements UserDetails { // Có thể implement thêm
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
-		// Mặc định role là USER nếu null
 		String roleName = (user.getRole() == null || user.getRole().isEmpty()) ? "USER" : user.getRole();
-		// Spring Security yêu cầu prefix "ROLE_" cho các role chuẩn
 		return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + roleName));
 	}
 
 	@Override
 	public String getPassword() {
-		return user.getPassword();
+		if (user.getProviders() != null) {
+			return user.getProviders().stream()
+					.filter(p -> p.getProvider() == AuthProvider.LOCAL)
+					.map(UserProvider::getPasswordHash)
+					.findFirst()
+					.orElse("");
+		}
+		return "";
 	}
 
 	@Override
@@ -51,6 +59,6 @@ public class UserPrincipal implements UserDetails { // Có thể implement thêm
 
 	@Override
 	public boolean isEnabled() {
-		return true;
+		return user.getIsActive();
 	}
 }

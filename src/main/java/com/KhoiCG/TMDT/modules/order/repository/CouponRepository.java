@@ -1,10 +1,12 @@
 package com.KhoiCG.TMDT.modules.order.repository;
 
 import com.KhoiCG.TMDT.modules.order.entity.Coupon;
-import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
 import java.util.Optional;
 
-public interface CouponRepository extends MongoRepository<Coupon, String> {
-    // Tìm mã code (không phân biệt hoa thường nếu muốn, nhưng ở đây ta tìm chính xác)
+@Repository
+public interface CouponRepository extends JpaRepository<Coupon, Long> {
     Optional<Coupon> findByCode(String code);
 }

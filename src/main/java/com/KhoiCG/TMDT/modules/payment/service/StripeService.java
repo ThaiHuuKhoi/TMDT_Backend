@@ -2,9 +2,14 @@ package com.KhoiCG.TMDT.modules.payment.service;
 
 import com.KhoiCG.TMDT.modules.order.dto.CouponCheckRequest;
 import com.KhoiCG.TMDT.modules.order.dto.CouponResponse;
+import com.KhoiCG.TMDT.modules.order.entity.Cart;
+import com.KhoiCG.TMDT.modules.order.entity.CartItem;
+import com.KhoiCG.TMDT.modules.order.service.CartService;
 import com.KhoiCG.TMDT.modules.order.service.CouponService;
 import com.KhoiCG.TMDT.modules.payment.dto.CartItemDto;
 import com.KhoiCG.TMDT.modules.payment.dto.ProductCreatedEvent;
+import com.KhoiCG.TMDT.modules.product.entity.ProductVariant;
+import com.KhoiCG.TMDT.modules.product.repository.ProductVariantRepository;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Price;
 import com.stripe.model.Product;
@@ -15,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -23,6 +29,8 @@ import java.util.List;
 public class StripeService {
 
     private final CouponService couponService;
+    private final ProductVariantRepository variantRepository;
+    private final CartService cartService;
 
     // --- 1. Tạo Product trên Stripe (Từ Kafka) ---
     public void createStripeProduct(ProductCreatedEvent event) {
@@ -58,54 +66,57 @@ public class StripeService {
     }
 
     // --- 3. Tạo Checkout Session (Cho Controller gọi) ---
-    public String createCheckoutSession(List<CartItemDto> items, String couponCode) throws StripeException {
+    public String createCheckoutSession(Long userId, String couponCode) throws StripeException {
 
-        // A. TÍNH TỔNG TIỀN GỐC
-        long totalAmount = 0;
-        StringBuilder description = new StringBuilder("Thanh toán đơn hàng gồm: ");
-
-        for (CartItemDto item : items) {
-            // Lưu ý: Nếu price là 20.5 (USD) thì nhân 100 thành cent.
-            // Nếu price là 50000 (VND) thì giữ nguyên (tuỳ đơn vị tiền tệ bạn chọn).
-            // Ở đây giả sử bạn dùng USD như code cũ:
-            long itemTotal = (long) (item.getPrice() * 100) * item.getQuantity();
-            totalAmount += itemTotal;
-
-            description.append(item.getName()).append(" x").append(item.getQuantity()).append(", ");
+        // 1. LẤY GIỎ HÀNG TỪ DATABASE DỰA TRÊN USER ID
+        Cart cart = cartService.getOrCreateCart(userId);
+        if (cart.getItems() == null || cart.getItems().isEmpty()) {
+            throw new RuntimeException("Giỏ hàng của bạn đang trống!");
         }
 
-        // B. XỬ LÝ MÃ GIẢM GIÁ
-        if (couponCode != null && !couponCode.isEmpty()) {
+        // 2. TÍNH TỔNG TIỀN TRỰC TIẾP TỪ DỮ LIỆU DATABASE (Bảo mật 100%)
+        long totalAmountInCent = 0;
+        StringBuilder description = new StringBuilder("Thanh toán đơn hàng: ");
+
+        for (CartItem item : cart.getItems()) {
+            ProductVariant variant = item.getVariant();
+
+            // Tính tiền = giá DB * số lượng (Nhân 100 để ra cent cho Stripe)
+            long itemTotal = variant.getPrice().multiply(BigDecimal.valueOf(100)).longValue() * item.getQuantity();
+            totalAmountInCent += itemTotal;
+
+            // Format mô tả: "Tên SP (Size M, Đen) x2"
+            description.append(variant.getProduct().getName())
+                    .append(" x").append(item.getQuantity()).append(", ");
+        }
+
+        // 3. XỬ LÝ MÃ GIẢM GIÁ (Nếu có)
+        if (couponCode != null && !couponCode.trim().isEmpty()) {
             CouponCheckRequest checkReq = new CouponCheckRequest();
             checkReq.setCode(couponCode);
-            // CouponService đang tính theo Double, ta convert sang Double để tính
-            checkReq.setOrderAmount( totalAmount);
+            checkReq.setOrderAmount(totalAmountInCent);
 
             CouponResponse couponRes = couponService.applyCoupon(checkReq);
-
             if (couponRes.isValid()) {
-                // Cập nhật tổng tiền sau khi giảm
-                // Lưu ý: CouponService trả về finalPrice, ta lấy dùng luôn
-                totalAmount = couponRes.getFinalPrice().longValue();
-                description.append(" [Đã giảm giá mã: ").append(couponCode).append("]");
+                totalAmountInCent = couponRes.getFinalPrice();
+                description.append(" [Áp dụng mã: ").append(couponCode).append("]");
             }
         }
 
-        // Chặn tiền âm (Stripe yêu cầu tối thiểu ~50 cent)
-        if (totalAmount < 50) totalAmount = 50;
+        // Tối thiểu 0.5$ cho Stripe (tương đương 50 cent)
+        if (totalAmountInCent < 50) totalAmountInCent = 50;
 
-        // C. TẠO SESSION STRIPE (Gửi 1 Line Item tổng)
+        // 4. TẠO SESSION STRIPE
         SessionCreateParams.LineItem lineItem = SessionCreateParams.LineItem.builder()
                 .setQuantity(1L)
                 .setPriceData(
                         SessionCreateParams.LineItem.PriceData.builder()
-                                .setCurrency("usd") // Đổi thành "vnd" nếu bạn dùng tiền Việt
-                                .setUnitAmount(totalAmount)
+                                .setCurrency("usd")
+                                .setUnitAmount(totalAmountInCent)
                                 .setProductData(
                                         SessionCreateParams.LineItem.PriceData.ProductData.builder()
-                                                .setName("Tổng đơn hàng TrendLama")
+                                                .setName("Thanh toán hóa đơn TrendLama")
                                                 .setDescription(description.toString())
-                                                // .addImage("https://link-to-your-logo.png")
                                                 .build()
                                 )
                                 .build()
@@ -114,13 +125,16 @@ public class StripeService {
 
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.PAYMENT)
-                .setUiMode(SessionCreateParams.UiMode.EMBEDDED) // Chế độ nhúng
-                .setReturnUrl("http://localhost:3002/return?session_id={CHECKOUT_SESSION_ID}") // URL quay về sau khi thanh toán
-                .addLineItem(lineItem) // Chỉ add 1 item tổng
+                .setUiMode(SessionCreateParams.UiMode.EMBEDDED)
+                .setReturnUrl("http://localhost:3002/payment/return?session_id={CHECKOUT_SESSION_ID}") // Sửa lại URL return cho khớp frontend
+                .addLineItem(lineItem)
                 .build();
 
-        Session session = Session.create(params);
-        return session.getClientSecret();
+        return Session.create(params).getClientSecret();
+    }
+
+    public Session retrieveSession(String sessionId) throws StripeException {
+        return Session.retrieve(sessionId);
     }
 
     // Helper: Lấy giá từ Stripe (Giống getStripeProductPrice trong code Node)
@@ -135,8 +149,4 @@ public class StripeService {
         return prices.getData().get(0).getUnitAmount();
     }
 
-    // Helper: Retrieve Session Info
-    public Session retrieveSession(String sessionId) throws StripeException {
-        return Session.retrieve(sessionId);
-    }
 }

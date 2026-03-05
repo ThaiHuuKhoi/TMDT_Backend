@@ -1,27 +1,42 @@
 package com.KhoiCG.TMDT.modules.product.entity;
 
-import lombok.Data;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.mongodb.core.mapping.Document;
+import com.KhoiCG.TMDT.modules.user.entity.User;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
-@Data
-@Document(collection = "reviews")
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(name = "reviews", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"user_id", "product_id"})
+})
 public class Review {
+
     @Id
-    private String id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    private String userId;      // Ai đánh giá?
-    private String userName;    // Tên người đánh giá (lưu luôn để đỡ query lại User)
-    private String userAvatar;  // Avatar (nếu có)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    private String productId;   // Đánh giá sản phẩm nào?
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
 
-    private int rating;         // 1 đến 5
-    private String comment;     // Nội dung: "Hàng đẹp quá shop ơi!"
+    @Column(nullable = false)
+    private Integer rating;
 
-    @CreatedDate
+    @Column(columnDefinition = "TEXT")
+    private String comment;
+
+    @CreationTimestamp
+    @Column(updatable = false)
     private LocalDateTime createdAt;
 }

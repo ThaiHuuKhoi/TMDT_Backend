@@ -1,20 +1,47 @@
 package com.KhoiCG.TMDT.modules.marketing.entity;
 
-import lombok.Data;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import java.time.LocalDateTime;
 
-@Data
-@Document(collection = "banners")
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(name = "banners")
 public class Banner {
+
     @Id
-    private String id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    private String title;       // Tiêu đề (VD: Sale 50%)
-    private String description; // Mô tả nhỏ
-    private String imageUrl;    // Link ảnh (Cloudinary)
-    private String linkUrl;     // Bấm vào thì nhảy đi đâu (VD: /products?category=men)
+    private String title;
 
-    private boolean isActive = true; // Ẩn/Hiện
-    private int displayOrder;        // Thứ tự hiển thị (1, 2, 3...)
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(nullable = false, length = 500)
+    private String imageUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TargetType targetType;
+
+    private Long targetId;
+
+    @Column(length = 500)
+    private String linkUrl;
+
+    @Builder.Default
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
+    private Integer displayOrder;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
 }

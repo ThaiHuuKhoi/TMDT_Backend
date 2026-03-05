@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AuthResponse {
-    private String token;
-    // Có thể thêm refreshToken hoặc tokenType vào đây sau này
+    private String accessToken; // Đổi từ 'token' thành 'accessToken'
+    private String refreshToken;
 }

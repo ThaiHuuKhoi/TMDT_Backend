@@ -1,30 +1,61 @@
 package com.KhoiCG.TMDT.modules.order.entity;
 
-import lombok.Data;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Data
-@Document(collection = "coupons")
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(name = "coupons")
 public class Coupon {
-    @Id
-    private String id;
 
-    @Indexed(unique = true)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(unique = true, nullable = false, length = 50)
     private String code;
 
-    private String discountType;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private DiscountType discountType;
 
-    private Long discountValue;
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal discountValue;
 
-    private Long minOrderValue;
+    @Column(precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal minOrderValue = BigDecimal.ZERO;
 
     private Integer maxUsage;
+
+    @Builder.Default
     private Integer usedCount = 0;
 
+    @Builder.Default
+    private Integer limitPerUser = 1;
+
+    @Version
+    @Builder.Default
+    private Integer version = 0;
+
     private LocalDateTime expiryDate;
-    private boolean isActive = true;
+
+    @Builder.Default
+    private Boolean isActive = true;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    public enum DiscountType {
+        FIXED, PERCENTAGE
+    }
 }

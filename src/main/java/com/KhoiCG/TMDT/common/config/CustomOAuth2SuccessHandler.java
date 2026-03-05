@@ -1,7 +1,9 @@
 package com.KhoiCG.TMDT.common.config;
-import com.KhoiCG.TMDT.modules.auth.entity.AuthProvider;
-import com.KhoiCG.TMDT.modules.auth.entity.User;
-import com.KhoiCG.TMDT.modules.auth.repository.UserRepo;
+
+import com.KhoiCG.TMDT.modules.user.entity.AuthProvider;
+import com.KhoiCG.TMDT.modules.user.entity.User;
+import com.KhoiCG.TMDT.modules.user.entity.UserProvider;
+import com.KhoiCG.TMDT.modules.user.repository.UserRepo;
 import com.KhoiCG.TMDT.modules.auth.service.JwtService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,22 +30,33 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         String name = oAuth2User.getAttribute("name");
         String providerId = oAuth2User.getAttribute("sub");
 
-        // Tìm hoặc tạo user
+        // Tìm hoặc tạo user (Đã cập nhật theo cấu trúc UserProvider mới)
         User user = userRepository.findByEmail(email)
                 .orElseGet(() -> {
-                    User newUser = new User();
-                    newUser.setEmail(email);
-                    newUser.setName(name);
-                    newUser.setRole("USER");
-                    newUser.setProvider(AuthProvider.GOOGLE);
-                    newUser.setProviderId(providerId);
+                    User newUser = User.builder()
+                            .email(email)
+                            .name(name)
+                            .role("USER")
+                            .isActive(true)
+                            .build();
+
+                    // Tạo đối tượng Provider (Google)
+                    UserProvider googleProvider = UserProvider.builder()
+                            .user(newUser)
+                            .provider(AuthProvider.GOOGLE)
+                            .providerUserId(providerId)
+                            .build();
+
+                    // Thêm vào danh sách và nhờ Hibernate Cascade tự động lưu cả 2
+                    newUser.getProviders().add(googleProvider);
+
                     return userRepository.save(newUser);
                 });
 
-        // Tạo Token từ Email
+        // Cấp phát Token mới
         String token = jwtService.generateToken(user.getEmail());
 
-        // Redirect về Frontend
+        // Redirect về Frontend (Mang theo token)
         String targetUrl = UriComponentsBuilder.fromUriString("http://localhost:3003/oauth2/redirect")
                 .queryParam("token", token)
                 .build().toUriString();

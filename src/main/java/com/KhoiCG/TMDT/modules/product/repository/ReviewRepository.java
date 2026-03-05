@@ -1,13 +1,15 @@
 package com.KhoiCG.TMDT.modules.product.repository;
 
 import com.KhoiCG.TMDT.modules.product.entity.Review;
-import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
 import java.util.List;
 
-public interface ReviewRepository extends MongoRepository<Review, String> {
-    // Lấy danh sách đánh giá của 1 sản phẩm, mới nhất lên đầu
-    List<Review> findByProductIdOrderByCreatedAtDesc(String productId);
+@Repository
+public interface ReviewRepository extends JpaRepository<Review, Long> {
 
-    // Lấy tất cả đánh giá của 1 sản phẩm (để tính trung bình)
-    List<Review> findByProductId(String productId);
+    List<Review> findByProductIdOrderByCreatedAtDesc(Long productId);
+
+    List<Review> findByProductId(Long productId);
 }

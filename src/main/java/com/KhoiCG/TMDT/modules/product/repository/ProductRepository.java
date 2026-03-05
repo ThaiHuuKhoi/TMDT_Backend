@@ -8,9 +8,8 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-// Kế thừa JpaSpecificationExecutor để hỗ trợ filter dynamic
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
-    List<Product> findByCategory_IdAndIdNot(String categoryId, String excludedId, Pageable pageable);
     boolean existsBySlug(String slug);
+    List<Product> findByCategoryIdAndIdNot(Long categoryId, Long excludedId, Pageable pageable);
 }

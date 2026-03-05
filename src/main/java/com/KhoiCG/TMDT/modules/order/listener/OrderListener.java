@@ -1,4 +1,4 @@
-package com.KhoiCG.TMDT.common.event;
+package com.KhoiCG.TMDT.modules.order.listener;
 
 import com.KhoiCG.TMDT.modules.order.dto.PaymentSuccessEvent;
 import com.KhoiCG.TMDT.modules.order.service.OrderService;

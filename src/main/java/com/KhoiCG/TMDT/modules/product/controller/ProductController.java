@@ -1,6 +1,7 @@
 package com.KhoiCG.TMDT.modules.product.controller;
 
 import com.KhoiCG.TMDT.modules.product.dto.CreateProductRequest;
+import com.KhoiCG.TMDT.modules.product.dto.ProductResponse;
 import com.KhoiCG.TMDT.modules.product.entity.Product;
 import com.KhoiCG.TMDT.modules.product.service.ProductService;
 import jakarta.validation.Valid;
@@ -20,7 +21,7 @@ public class ProductController {
     private final ProductService productService;
 
     @GetMapping
-    public ResponseEntity<List<Product>> getProducts(
+    public ResponseEntity<List<ProductResponse>> getProducts(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String sort,
@@ -30,7 +31,7 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Product> getProduct(@PathVariable Long id) {
+    public ResponseEntity<ProductResponse> getProduct(@PathVariable Long id) {
         return ResponseEntity.ok(productService.getProduct(id));
     }
 
@@ -46,6 +47,13 @@ public class ProductController {
     public ResponseEntity<?> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
         return ResponseEntity.ok().build();
+    }
+
+    // ... các code cũ ...
+
+    @GetMapping("/{id}/related")
+    public ResponseEntity<List<ProductResponse>> getRelatedProducts(@PathVariable Long id) {
+        return ResponseEntity.ok(productService.getRelatedProducts(id));
     }
 
     // Update method tương tự...

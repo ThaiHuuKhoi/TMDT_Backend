@@ -1,4 +1,4 @@
-package com.KhoiCG.TMDT.common.event;
+package com.KhoiCG.TMDT.modules.payment.listener;
 
 import com.KhoiCG.TMDT.modules.payment.dto.ProductCreatedEvent;
 

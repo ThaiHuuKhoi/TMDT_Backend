@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.payment.controller;
 
+import com.KhoiCG.TMDT.modules.auth.entity.UserPrincipal;
 import com.KhoiCG.TMDT.modules.payment.dto.CreateSessionRequest;
 import com.KhoiCG.TMDT.modules.payment.service.StripeService;
 import com.stripe.exception.StripeException;
@@ -21,28 +22,27 @@ public class SessionController {
     @PostMapping("/create-checkout-session")
     public ResponseEntity<?> createCheckoutSession(@RequestBody CreateSessionRequest request) {
         try {
-            // Lấy userId (nếu cần dùng sau này)
-            String userId = "anonymous";
-            if (SecurityContextHolder.getContext().getAuthentication() != null) {
-                userId = SecurityContextHolder.getContext().getAuthentication().getName();
+            // Lấy thông tin user từ Token (JWT)
+            if (SecurityContextHolder.getContext().getAuthentication() == null ||
+                    SecurityContextHolder.getContext().getAuthentication().getPrincipal().equals("anonymousUser")) {
+                return ResponseEntity.status(401).body(Map.of("message", "Vui lòng đăng nhập"));
             }
 
-            // 👇 SỬA DÒNG NÀY:
-            // Cũ (Sai): stripeService.createCheckoutSession(userId, request.getCart());
-            // Mới (Đúng): Truyền List Items trước, Coupon Code sau
-            String clientSecret = stripeService.createCheckoutSession(
-                    request.getItems(),
-                    request.getCouponCode()
-            );
+            UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            Long userId = userDetails.getUser().getId();
+
+            // 🔥 TRUYỀN userId THAY VÌ request.getItems()
+            String clientSecret = stripeService.createCheckoutSession(userId, request.getCouponCode());
 
             return ResponseEntity.ok(Map.of("clientSecret", clientSecret));
-        } catch (StripeException e) {
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("message", "Lỗi server: " + e.getMessage()));
         }
     }
 
-    // GET /sessions/{session_id}
     @GetMapping("/{session_id}")
     public ResponseEntity<?> getSessionStatus(@PathVariable("session_id") String sessionId) {
         try {
@@ -52,7 +52,7 @@ public class SessionController {
                     "paymentStatus", session.getPaymentStatus()
             ));
         } catch (StripeException e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("message", e.getMessage()));
         }
     }
 }

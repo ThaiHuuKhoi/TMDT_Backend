@@ -8,5 +8,4 @@ import lombok.NoArgsConstructor;
 public class UserCreatedEvent {
     private String email;
     private String username;
-    // Các trường khác nếu có
 }

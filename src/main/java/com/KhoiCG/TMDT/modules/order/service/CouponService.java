@@ -7,6 +7,8 @@ import com.KhoiCG.TMDT.modules.order.repository.CouponRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 @Service
@@ -27,7 +29,8 @@ public class CouponService {
                 .orElse(null);
 
         // 1. Validate
-        if (coupon == null || !coupon.isActive()) {
+        // Sử dụng Boolean.TRUE.equals() để tránh lỗi NullPointerException nếu getIsActive() null
+        if (coupon == null || !Boolean.TRUE.equals(coupon.getIsActive())) {
             return new CouponResponse(false, "Mã không hợp lệ", 0L, request.getOrderAmount());
         }
         if (coupon.getExpiryDate() != null && LocalDateTime.now().isAfter(coupon.getExpiryDate())) {
@@ -36,25 +39,35 @@ public class CouponService {
         if (coupon.getMaxUsage() != null && coupon.getUsedCount() >= coupon.getMaxUsage()) {
             return new CouponResponse(false, "Mã đã hết lượt dùng", 0L, request.getOrderAmount());
         }
-        if (coupon.getMinOrderValue() != null && request.getOrderAmount() < coupon.getMinOrderValue()) {
+
+        // Đổi OrderAmount sang BigDecimal để so sánh an toàn
+        BigDecimal orderAmountBD = BigDecimal.valueOf(request.getOrderAmount());
+
+        // Dùng compareTo() thay vì dấu <
+        if (coupon.getMinOrderValue() != null && orderAmountBD.compareTo(coupon.getMinOrderValue()) < 0) {
             return new CouponResponse(false, "Đơn hàng chưa đạt giá trị tối thiểu", 0L, request.getOrderAmount());
         }
 
-        // 2. Tính toán (Dùng Long toàn bộ)
-        long discount = 0;
-        long orderAmount = request.getOrderAmount().longValue(); // Convert Double -> Long nếu DTO vẫn là Double
+        // 2. Tính toán an toàn bằng BigDecimal
+        BigDecimal discountBD = BigDecimal.ZERO;
 
-        if ("PERCENT".equals(coupon.getDiscountType())) {
+        // So sánh đúng với Enum thay vì String
+        if (coupon.getDiscountType() == Coupon.DiscountType.PERCENTAGE) {
             // Công thức: (Tổng * % ) / 100
-            discount = (orderAmount * coupon.getDiscountValue()) / 100;
+            discountBD = orderAmountBD.multiply(coupon.getDiscountValue())
+                    .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
         } else {
-            discount = coupon.getDiscountValue();
+            discountBD = coupon.getDiscountValue();
         }
 
         // Không giảm quá giá trị đơn hàng
-        if (discount > orderAmount) discount = orderAmount;
+        if (discountBD.compareTo(orderAmountBD) > 0) {
+            discountBD = orderAmountBD;
+        }
 
-        long finalPrice = orderAmount - discount;
+        // Covert lại ra Long để trả về cho Client
+        long discount = discountBD.longValue();
+        long finalPrice = request.getOrderAmount() - discount;
 
         return new CouponResponse(true, "Áp dụng thành công", discount, finalPrice);
     }
