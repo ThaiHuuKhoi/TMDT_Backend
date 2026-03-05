@@ -16,5 +16,4 @@ public class TmdtApplication {
 		ObjectMapper mapper = new ObjectMapper();
 		return mapper;
 	}
-
 }
