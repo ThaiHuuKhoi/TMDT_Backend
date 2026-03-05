@@ -1,7 +1,7 @@
 package com.KhoiCG.TMDT.modules.order.repository;
 
-import com.KhoiCG.TMDT.modules.order.dto.OrderChartResponse;
 import com.KhoiCG.TMDT.modules.order.entity.Order;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,7 +14,11 @@ import java.util.Optional;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> { // Đổi String thành Long
 
+    @EntityGraph(attributePaths = {"user", "coupon"})
     List<Order> findByUserId(Long userId);
+
+    @EntityGraph(attributePaths = {"user", "coupon"})
+    Optional<Order> findByIdAndUserId(Long id, Long userId);
 
     boolean existsByStripeSessionId(String stripeSessionId);
 
@@ -25,6 +29,5 @@ public interface OrderRepository extends JpaRepository<Order, Long> { // Đổi 
             "ORDER BY FUNCTION('MONTH', o.createdAt) ASC")
     List<Object[]> getRawMonthlyStats(@Param("startDate") LocalDateTime startDate);
 
-    Optional<Order> findByIdAndUserId(Long id, Long userId); // Đổi String thành Long
     Optional<Order> findByStripeSessionId(String stripeSessionId);
 }

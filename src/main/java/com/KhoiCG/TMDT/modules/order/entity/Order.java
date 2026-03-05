@@ -3,6 +3,7 @@ package com.KhoiCG.TMDT.modules.order.entity;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
@@ -39,7 +40,7 @@ public class Order {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "coupon_id")
-    private Coupon coupon; // Lưu lại mã đã dùng
+    private Coupon coupon;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -52,6 +53,7 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
+    @BatchSize(size = 50)
     private List<OrderItem> items = new ArrayList<>();
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)

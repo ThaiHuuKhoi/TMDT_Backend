@@ -2,6 +2,7 @@ package com.KhoiCG.TMDT.modules.order.controller;
 
 import com.KhoiCG.TMDT.modules.order.dto.CheckoutRequest;
 import com.KhoiCG.TMDT.modules.order.dto.OrderChartResponse;
+import com.KhoiCG.TMDT.modules.order.dto.OrderResponse;
 import com.KhoiCG.TMDT.modules.order.entity.Order;
 import com.KhoiCG.TMDT.modules.order.service.OrderService;
 import com.KhoiCG.TMDT.modules.payment.service.StripeService;
@@ -61,11 +62,11 @@ public class OrderController {
     }
 
     @GetMapping("/user-orders")
-    public ResponseEntity<List<Order>> getUserOrders() {
+    public ResponseEntity<List<OrderResponse>> getUserOrders() {
         UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userDetails.getUser().getId();
 
-        return new ResponseEntity<>(orderService.getUserOrders(userId), HttpStatus.OK);
+        return ResponseEntity.ok(orderService.getUserOrders(userId));
     }
 
     @GetMapping
@@ -87,8 +88,8 @@ public class OrderController {
             UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             Long userId = userDetails.getUser().getId();
 
-            Order order = orderService.getOrderDetails(id, userId);
-            return ResponseEntity.ok(order);
+            OrderResponse orderResponse = orderService.getOrderDetails(id, userId);
+            return ResponseEntity.ok(orderResponse);
         } catch (RuntimeException e) {
             return ResponseEntity.status(404).body(Map.of("message", e.getMessage()));
         }
@@ -96,9 +97,8 @@ public class OrderController {
 
     @GetMapping("/admin/all")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<List<Order>> getAllOrdersForAdmin() {
-        List<Order> orders = orderService.getAllOrdersForAdmin();
-        return ResponseEntity.ok(orders);
+    public ResponseEntity<List<OrderResponse>> getAllOrdersForAdmin() {
+        return ResponseEntity.ok(orderService.getAllOrdersForAdmin());
     }
 
     @PatchMapping("/admin/{id}/status")

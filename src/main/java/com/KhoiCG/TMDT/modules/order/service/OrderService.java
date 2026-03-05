@@ -3,19 +3,24 @@ package com.KhoiCG.TMDT.modules.order.service;
 
 import com.KhoiCG.TMDT.modules.order.dto.OrderChartResponse;
 import com.KhoiCG.TMDT.modules.order.dto.OrderCreatedEvent;
+import com.KhoiCG.TMDT.modules.order.dto.OrderResponse;
 import com.KhoiCG.TMDT.modules.order.dto.PaymentSuccessEvent;
 import com.KhoiCG.TMDT.modules.order.entity.*;
+import com.KhoiCG.TMDT.modules.order.event.OrderCompletedEvent;
+import com.KhoiCG.TMDT.modules.order.mapper.OrderMapper;
 import com.KhoiCG.TMDT.modules.order.repository.OrderRepository;
 import com.KhoiCG.TMDT.modules.payment.dto.CartItemDto;
 import com.KhoiCG.TMDT.modules.payment.service.StripeService;
 import com.KhoiCG.TMDT.modules.product.entity.ProductVariant;
 import com.KhoiCG.TMDT.modules.product.repository.ProductVariantRepository;
+import com.KhoiCG.TMDT.modules.product.service.InventoryService;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.repository.UserRepo;
 import com.stripe.model.checkout.Session;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -38,63 +43,53 @@ public class OrderService {
     private final StripeService stripeService;
     private final ProductVariantRepository variantRepository;
     private final CartService cartService;
+    private final OrderMapper orderMapper;
+    private final InventoryService inventoryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public Order createOrderFromStripe(String sessionId) {
-        // 1. Tìm lại đơn hàng PENDING đã lưu trước đó
         Order order = orderRepository.findByStripeSessionId(sessionId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch này trong hệ thống!"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch này!"));
 
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new RuntimeException("Đơn hàng này đã được xử lý!");
         }
 
         try {
-            // 2. Xác minh trạng thái với Stripe
+            // 1. Kiểm tra Stripe
             Session session = stripeService.retrieveSession(sessionId);
             if (!"paid".equals(session.getPaymentStatus())) {
                 throw new RuntimeException("Thanh toán chưa hoàn tất trên Stripe");
             }
 
-            // 🔥 BẢO MẬT 2 LỚP: Chống gian lận sửa giá trên frontend/Stripe
             BigDecimal stripeTotal = BigDecimal.valueOf(session.getAmountTotal() / 100.0);
             if (order.getTotalAmount().compareTo(stripeTotal) != 0) {
-                // Tiền không khớp -> Báo động gian lận (Có thể gửi cảnh báo cho Admin ở đây)
-                throw new RuntimeException("Số tiền thanh toán trên Stripe không khớp với đơn hàng gốc!");
+                throw new RuntimeException("Số tiền thanh toán trên Stripe không khớp với hệ thống!");
             }
 
-            // 3. Thanh toán Ok -> Tiến hành trừ tồn kho DỰA TRÊN ORDER ITEM (Bỏ qua Cart)
-            for (OrderItem item : order.getItems()) {
-                ProductVariant variant = item.getVariant();
-                if (variant.getStockQuantity() < item.getQuantity()) {
-                    throw new RuntimeException("Sản phẩm '" + item.getProductName() + "' vừa hết hàng trong lúc bạn thanh toán. Vui lòng liên hệ CSKH để hoàn tiền!");
-                }
-                variant.setStockQuantity(variant.getStockQuantity() - item.getQuantity());
-                variantRepository.save(variant);
-            }
+            // 2. Trừ kho (Gọi hàm từ InventoryService)
+            inventoryService.deductInventoryForOrder(order.getItems());
 
-            // 4. Đổi trạng thái Order thành COMPLETED
+            // 3. Cập nhật trạng thái
             order.setStatus(OrderStatus.COMPLETED);
-            OrderStatusHistory history = OrderStatusHistory.builder()
+            order.addStatusHistory(OrderStatusHistory.builder()
                     .status(OrderStatus.COMPLETED)
-                    .note("Thanh toán Stripe thành công. Đã trừ tồn kho.")
-                    .build();
-            order.addStatusHistory(history);
+                    .note("Thanh toán Stripe thành công.")
+                    .build());
 
-            // 5. Xóa giỏ hàng của user
-            cartService.clearCart(order.getUser().getId());
+            Order savedOrder = orderRepository.save(order);
 
-            // 6. Bắn Event Kafka
-            kafkaTemplate.send("order.created", new OrderCreatedEvent(
-                    order.getUser().getEmail(), order.getTotalAmount().longValue(), "COMPLETED"));
+            // 4. Phát sự kiện để xử lý giỏ hàng & gửi Kafka (Hoàn toàn tách biệt)
+            eventPublisher.publishEvent(new OrderCompletedEvent(savedOrder));
 
-            return orderRepository.save(order);
+            return savedOrder;
 
         } catch (ObjectOptimisticLockingFailureException e) {
-            log.error("Lỗi xung đột dữ liệu", e);
-            throw new RuntimeException("Rất tiếc, một trong những sản phẩm bạn chọn vừa mới hết hàng!");
+            log.error("Xung đột dữ liệu tồn kho", e);
+            throw new RuntimeException("Rất tiếc, sản phẩm bạn chọn vừa hết hàng. Vui lòng liên hệ hoàn tiền!");
         } catch (Exception e) {
-            log.error("Lỗi khi xử lý đơn hàng Stripe", e);
+            log.error("Lỗi thanh toán: ", e);
             throw new RuntimeException(e.getMessage());
         }
     }
@@ -135,22 +130,28 @@ public class OrderService {
     }
 
     // --- 2. Lấy danh sách Order ---
-    public List<Order> getUserOrders(Long userId) {
-        return orderRepository.findByUserId(userId);
+    public List<OrderResponse> getUserOrders(Long userId) {
+        return orderRepository.findByUserId(userId)
+                .stream()
+                .map(orderMapper::toOrderResponse)
+                .toList();
     }
-
     public List<Order> getAllOrders(int limit) {
         // Tối ưu hiệu năng: Dùng PageRequest đẩy thẳng giới hạn (Limit) xuống DB thay vì lấy ra hết rồi stream().limit()
         return orderRepository.findAll(PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"))).getContent();
     }
 
-    public List<Order> getAllOrdersForAdmin() {
-        return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+    public List<OrderResponse> getAllOrdersForAdmin() {
+        return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
+                .stream()
+                .map(orderMapper::toOrderResponse)
+                .toList();
     }
 
-    public Order getOrderDetails(Long id, Long userId) {
-        return orderRepository.findByIdAndUserId(id, userId)
+    public OrderResponse getOrderDetails(Long id, Long userId) {
+        Order order = orderRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng hoặc bạn không có quyền truy cập."));
+        return orderMapper.toOrderResponse(order);
     }
 
     // --- 3. Biểu đồ thống kê ---
