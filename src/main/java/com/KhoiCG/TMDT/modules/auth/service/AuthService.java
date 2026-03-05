@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.auth.service;
 
+import com.KhoiCG.TMDT.modules.auth.event.UserRegisteredEvent;
 import com.KhoiCG.TMDT.modules.user.entity.AuthProvider;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.entity.UserProvider;
@@ -9,6 +10,7 @@ import com.KhoiCG.TMDT.modules.auth.dto.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,7 +27,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final TokenService tokenService;
     private final AuthenticationManager authenticationManager;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -33,37 +35,29 @@ public class AuthService {
             throw new RuntimeException("Email đã được sử dụng!");
         }
 
-        // 1. Tạo thông tin User
         User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
                 .role("USER")
                 .build();
 
-        // 2. Tạo thông tin Provider (Mật khẩu)
         UserProvider localProvider = UserProvider.builder()
                 .user(user)
                 .provider(AuthProvider.LOCAL)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .build();
 
-        // 3. Liên kết Provider vào User
         user.getProviders().add(localProvider);
 
-        // 4. Lưu vào Database (sẽ insert cả 2 bảng)
         User savedUser = userRepo.save(user);
 
-        try {
-            UserCreatedEvent event = new UserCreatedEvent();
-            event.setEmail(savedUser.getEmail());
-            event.setUsername(savedUser.getName());
-            kafkaTemplate.send("user.created", event);
-        } catch (Exception e) {
-            log.error("Error sending Kafka event: {}", e.getMessage());
-        }
+        // Việc gửi mail, tạo thông báo... sẽ do các Listener khác tự lo
+        eventPublisher.publishEvent(new UserRegisteredEvent(savedUser));
 
         String accessToken = jwtService.generateToken(savedUser.getEmail());
         String refreshToken = jwtService.generateRefreshToken(savedUser.getEmail());
+
+        tokenService.saveRefreshToken(savedUser, refreshToken);
 
         return AuthResponse.builder()
                 .accessToken(accessToken)

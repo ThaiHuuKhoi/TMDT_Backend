@@ -1,10 +1,13 @@
 package com.KhoiCG.TMDT.common.config;
 
+import com.KhoiCG.TMDT.common.utils.CookieUtils;
 import com.KhoiCG.TMDT.modules.user.entity.AuthProvider;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.entity.UserProvider;
 import com.KhoiCG.TMDT.modules.user.repository.UserRepo;
 import com.KhoiCG.TMDT.modules.auth.service.JwtService;
+import com.KhoiCG.TMDT.modules.auth.service.TokenService; // 🌟 Thêm dòng này
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,7 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 
     private final UserRepo userRepository;
     private final JwtService jwtService;
+    private final TokenService tokenService; // 🌟 Inject TokenService để lưu RefreshToken
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
@@ -30,7 +34,7 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         String name = oAuth2User.getAttribute("name");
         String providerId = oAuth2User.getAttribute("sub");
 
-        // Tìm hoặc tạo user (Đã cập nhật theo cấu trúc UserProvider mới)
+        // Tìm hoặc tạo user
         User user = userRepository.findByEmail(email)
                 .orElseGet(() -> {
                     User newUser = User.builder()
@@ -40,25 +44,38 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
                             .isActive(true)
                             .build();
 
-                    // Tạo đối tượng Provider (Google)
                     UserProvider googleProvider = UserProvider.builder()
                             .user(newUser)
                             .provider(AuthProvider.GOOGLE)
                             .providerUserId(providerId)
                             .build();
 
-                    // Thêm vào danh sách và nhờ Hibernate Cascade tự động lưu cả 2
                     newUser.getProviders().add(googleProvider);
-
                     return userRepository.save(newUser);
                 });
 
-        // Cấp phát Token mới
-        String token = jwtService.generateToken(user.getEmail());
+        // 🌟 1. CẤP PHÁT CẢ 2 TOKEN
+        String accessToken = jwtService.generateToken(user.getEmail());
+        String refreshToken = jwtService.generateRefreshToken(user.getEmail());
 
-        // Redirect về Frontend (Mang theo token)
+        // 🌟 2. LƯU REFRESH TOKEN VÀO DATABASE
+        tokenService.saveRefreshToken(user, refreshToken);
+
+        // 🌟 3. CÀI ĐẶT HTTP-ONLY COOKIE CHO REFRESH TOKEN (Bảo mật tuyệt đối)
+        // (Hàm addCookie của bạn trong CookieUtils đã mặc định set HttpOnly = true rồi)
+        CookieUtils.addCookie(response, "refreshToken", refreshToken, 7 * 24 * 60 * 60); // 7 ngày
+
+        // 🌟 4. CHUYỂN GIAO ACCESS TOKEN BẰNG COOKIE TẠM THỜI
+        // Tạo một cookie thường (JS đọc được), chỉ sống 60 giây để Frontend đọc rồi tự hủy
+        Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
+        accessTokenCookie.setPath("/");
+        accessTokenCookie.setHttpOnly(false); // Cho phép JS (React/Vue) đọc được
+        accessTokenCookie.setMaxAge(60); // Tự động chết sau 60 giây
+        response.addCookie(accessTokenCookie);
+
+        // 🌟 5. REDIRECT VỀ FRONTEND VỚI URL SẠCH SẼ (Không dính dáng gì tới Token)
         String targetUrl = UriComponentsBuilder.fromUriString("http://localhost:3003/oauth2/redirect")
-                .queryParam("token", token)
+                // Đã XÓA dòng .queryParam("token", token) gây rò rỉ bảo mật
                 .build().toUriString();
 
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
