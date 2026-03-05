@@ -7,7 +7,6 @@ import com.KhoiCG.TMDT.modules.order.entity.Order;
 import com.KhoiCG.TMDT.modules.order.service.OrderService;
 import com.KhoiCG.TMDT.modules.payment.service.StripeService;
 import com.KhoiCG.TMDT.modules.auth.entity.UserPrincipal;
-import com.stripe.exception.StripeException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,24 +25,16 @@ public class OrderController {
     private final OrderService orderService;
     private final StripeService stripeService;
 
-    // 1. SỬA LỖI JSON: Bọc toàn bộ Exception vào Map.of("message", ...)
     @PostMapping("/create-from-stripe")
     public ResponseEntity<?> createOrderFromStripe(@RequestParam String sessionId) {
         try {
-            Order order = orderService.createOrderFromStripe(sessionId);
+            Order order = orderService.confirmOrderPayment(sessionId);
             return ResponseEntity.ok(order);
         } catch (RuntimeException e) {
-            if (e.getMessage() != null && e.getMessage().contains("exists")) {
-                return ResponseEntity.ok(Map.of("message", "Order already processed"));
-            }
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Lỗi server không xác định"));
         }
     }
 
-    // 2. CẬP NHẬT TẠO SESSION: Lấy Giỏ hàng từ Database thông qua UserId
-    // Trong OrderController.java
     @PostMapping("/create-checkout-session")
     public ResponseEntity<?> createCheckoutSession(@RequestBody CheckoutRequest request) {
         try {

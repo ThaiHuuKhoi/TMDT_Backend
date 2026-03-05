@@ -1,4 +1,3 @@
-// File: src/main/java/com/KhoiCG/TMDT/modules/order/service/OrderService.java
 package com.KhoiCG.TMDT.modules.order.service;
 
 import com.KhoiCG.TMDT.modules.order.dto.OrderChartResponse;
@@ -9,10 +8,10 @@ import com.KhoiCG.TMDT.modules.order.entity.*;
 import com.KhoiCG.TMDT.modules.order.event.OrderCompletedEvent;
 import com.KhoiCG.TMDT.modules.order.mapper.OrderMapper;
 import com.KhoiCG.TMDT.modules.order.repository.OrderRepository;
-import com.KhoiCG.TMDT.modules.payment.dto.CartItemDto;
+import com.KhoiCG.TMDT.modules.payment.entity.Payment;
+import com.KhoiCG.TMDT.modules.payment.repository.PaymentRepository;
 import com.KhoiCG.TMDT.modules.payment.service.StripeService;
 import com.KhoiCG.TMDT.modules.product.entity.ProductVariant;
-import com.KhoiCG.TMDT.modules.product.repository.ProductVariantRepository;
 import com.KhoiCG.TMDT.modules.product.service.InventoryService;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.repository.UserRepo;
@@ -41,11 +40,11 @@ public class OrderService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final UserRepo userRepo;
     private final StripeService stripeService;
-    private final ProductVariantRepository variantRepository;
     private final CartService cartService;
     private final OrderMapper orderMapper;
     private final InventoryService inventoryService;
     private final ApplicationEventPublisher eventPublisher;
+    private final PaymentRepository paymentRepository;
 
     @Transactional
     public Order createOrderFromStripe(String sessionId) {
@@ -137,7 +136,6 @@ public class OrderService {
                 .toList();
     }
     public List<Order> getAllOrders(int limit) {
-        // Tối ưu hiệu năng: Dùng PageRequest đẩy thẳng giới hạn (Limit) xuống DB thay vì lấy ra hết rồi stream().limit()
         return orderRepository.findAll(PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"))).getContent();
     }
 
@@ -156,14 +154,12 @@ public class OrderService {
 
     // --- 3. Biểu đồ thống kê ---
     public List<OrderChartResponse> getOrderChart() {
-        // Gọi hàm mới tạo bên Repository
         List<Object[]> rawStats = orderRepository.getRawMonthlyStats(LocalDateTime.now().minusMonths(6));
         List<OrderChartResponse> responseList = new ArrayList<>();
 
         for (Object[] row : rawStats) {
             String month = (String) row[0];
 
-            // Ép kiểu qua Number trước để an toàn với mọi loại số của MySQL (Long, BigInteger...)
             Number totalNum = (Number) row[1];
             Number successfulNum = (Number) row[2];
 
@@ -185,7 +181,6 @@ public class OrderService {
         OrderStatus newStatus = OrderStatus.valueOf(newStatusStr.toUpperCase());
         order.setStatus(newStatus);
 
-        // 🌟 Lưu vết lịch sử người đổi trạng thái
         OrderStatusHistory history = OrderStatusHistory.builder()
                 .order(order)
                 .status(newStatus)
@@ -212,8 +207,8 @@ public class OrderService {
         // Khởi tạo Order trạng thái PENDING
         Order order = Order.builder()
                 .user(user)
-                .status(OrderStatus.PENDING) // QUAN TRỌNG: Chỉ là chờ thanh toán
-                .stripeSessionId(stripeSessionId) // Lưu lại mã phiên Stripe để đối chiếu sau
+                .status(OrderStatus.PENDING)
+                .stripeSessionId(stripeSessionId)
                 .build();
 
         // Copy từ CartItem sang OrderItem (Khóa chết giá trị)
@@ -234,14 +229,75 @@ public class OrderService {
                     .productName(variant.getProduct().getName())
                     .sku(variant.getSku())
                     .quantity(cartItem.getQuantity())
-                    .priceAtPurchase(variant.getPrice()) // Khóa cứng giá lúc mua
+                    .priceAtPurchase(variant.getPrice())
                     .build();
             order.addOrderItem(orderItem);
         }
 
         order.setTotalAmount(totalAmount);
-        // (Tùy chọn: Nếu bạn có logic tính toán Coupon thì gọi ở đây để trừ vào totalAmount)
-
         return orderRepository.save(order);
+    }
+
+    @Transactional
+    public Order confirmOrderPayment(String sessionId) {
+
+        //  1. IDEMPOTENCY CHECK: Kẻ gác cổng
+        if (paymentRepository.findByTransactionId(sessionId).isPresent()) {
+            log.info("Giao dịch {} đã được xử lý trước đó. Bỏ qua để chống trùng lặp.", sessionId);
+            return orderRepository.findByStripeSessionId(sessionId).orElse(null);
+        }
+
+        // 2. Tìm đơn hàng PENDING đã đóng băng ở bước trước
+        Order order = orderRepository.findByStripeSessionId(sessionId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch này!"));
+
+        // Double check trạng thái Order (Phòng hờ race-condition mili-giây)
+        if (order.getStatus() == OrderStatus.COMPLETED) {
+            return order;
+        }
+
+        try {
+            // 3. Trừ kho (Gọi hàm từ InventoryService như đã tối ưu ở phần SOLID)
+            inventoryService.deductInventoryForOrder(order.getItems());
+
+            // 4. Cập nhật trạng thái Order
+            order.setStatus(OrderStatus.COMPLETED);
+            order.addStatusHistory(OrderStatusHistory.builder()
+                    .status(OrderStatus.COMPLETED)
+                    .note("Thanh toán Stripe thành công.")
+                    .build());
+
+            Order savedOrder = orderRepository.save(order);
+
+            //  5. LƯU VẾT THANH TOÁN (Khóa giao dịch)
+            // Lần sau webhook/frontend có gọi lại sessionId này thì sẽ bị chặn ở bước 1
+            Payment payment = Payment.builder()
+                    .order(savedOrder)
+                    .paymentMethod(Payment.PaymentMethod.STRIPE)
+                    .transactionId(sessionId)
+                    .amount(savedOrder.getTotalAmount())
+                    .status(Payment.PaymentStatus.SUCCESS)
+                    .build();
+            paymentRepository.save(payment);
+
+            // 6. Phát sự kiện (Xóa giỏ hàng, gửi Email, v.v...)
+            eventPublisher.publishEvent(new OrderCompletedEvent(savedOrder));
+
+            return savedOrder;
+
+        } catch (Exception e) {
+            log.error("Lỗi khi hoàn tất đơn hàng: ", e);
+
+            Payment failedPayment = Payment.builder()
+                    .order(order)
+                    .paymentMethod(Payment.PaymentMethod.STRIPE)
+                    .transactionId(sessionId)
+                    .amount(order.getTotalAmount())
+                    .status(Payment.PaymentStatus.FAILED)
+                    .build();
+            paymentRepository.save(failedPayment);
+
+            throw new RuntimeException("Xử lý thanh toán thất bại: " + e.getMessage());
+        }
     }
 }

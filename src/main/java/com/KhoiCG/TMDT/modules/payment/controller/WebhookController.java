@@ -37,7 +37,7 @@ public class WebhookController {
         try {
             event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
         } catch (SignatureVerificationException e) {
-            log.error("❌ Invalid Signature");
+            log.error("Invalid Signature");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid Signature");
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Webhook Error");
@@ -49,22 +49,31 @@ public class WebhookController {
                 JsonNode sessionNode = rootNode.path("data").path("object");
 
                 String sessionId = sessionNode.path("id").asText();
-                String userId = sessionNode.path("client_reference_id").asText("anonymous");
-                long amountTotal = sessionNode.path("amount_total").asLong();
+
+                // Lấy userId mà chúng ta đã truyền vào từ StripeService
+                String userIdStr = sessionNode.path("client_reference_id").asText();
+
+                if (userIdStr == null || userIdStr.isEmpty() || "null".equals(userIdStr)) {
+                    log.error("Cảnh báo: Không tìm thấy client_reference_id cho session {}", sessionId);
+                    return ResponseEntity.ok().build(); // Bỏ qua giao dịch lỗi này
+                }
+
+                long amountTotal = sessionNode.path("amount_total").asLong(); // Lúc này amount_total chính là tiền VND chuẩn
                 String email = sessionNode.path("customer_details").path("email").asText("unknown@mail.com");
 
-                log.info("✅ Payment Succeeded - Session: {}", sessionId);
+                log.info("Payment Succeeded - Session: {} | User: {}", sessionId, userIdStr);
 
                 PaymentSuccessEvent successEvent = new PaymentSuccessEvent();
-                successEvent.setUserId(userId);
+                successEvent.setUserId(userIdStr);
                 successEvent.setEmail(email);
                 successEvent.setAmount(amountTotal);
                 successEvent.setStatus("success");
+                successEvent.setSessionId(sessionId);
 
                 kafkaTemplate.send("payment.successful", successEvent);
 
             } catch (Exception e) {
-                log.error("🔥 Error parsing JSON manually: ", e);
+                log.error("Error parsing JSON manually: ", e);
                 return ResponseEntity.internalServerError().build();
             }
         }

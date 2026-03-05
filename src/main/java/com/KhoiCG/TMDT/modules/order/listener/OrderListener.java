@@ -18,16 +18,16 @@ public class OrderListener {
 
     @KafkaListener(topics = "payment.successful", groupId = "order-group")
     public void handlePaymentSuccess(String message) {
-        log.info("📩 Received Kafka message: {}", message);
-
+        log.info("Received Webhook Kafka message: {}", message);
         try {
             PaymentSuccessEvent event = objectMapper.readValue(message, PaymentSuccessEvent.class);
+            String sessionId = event.getSessionId();
 
-            log.info("✅ Parsed Event for User: {}", event.getEmail());
-            orderService.createOrder(event);
+            log.info("Xử lý đơn hàng từ Webhook cho Session: {}", sessionId);
+            orderService.confirmOrderPayment(sessionId);
 
         } catch (Exception e) {
-            log.error("❌ Error parsing Kafka message: {}", e.getMessage());
+            log.error("Lỗi Kafka: {}", e.getMessage());
         }
     }
 }

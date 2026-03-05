@@ -22,7 +22,6 @@ public class SessionController {
     @PostMapping("/create-checkout-session")
     public ResponseEntity<?> createCheckoutSession(@RequestBody CreateSessionRequest request) {
         try {
-            // Lấy thông tin user từ Token (JWT)
             if (SecurityContextHolder.getContext().getAuthentication() == null ||
                     SecurityContextHolder.getContext().getAuthentication().getPrincipal().equals("anonymousUser")) {
                 return ResponseEntity.status(401).body(Map.of("message", "Vui lòng đăng nhập"));
@@ -31,7 +30,6 @@ public class SessionController {
             UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             Long userId = userDetails.getUser().getId();
 
-            // 🔥 TRUYỀN userId THAY VÌ request.getItems()
             String clientSecret = stripeService.createCheckoutSession(userId, request.getCouponCode());
 
             return ResponseEntity.ok(Map.of("clientSecret", clientSecret));
