@@ -83,13 +83,12 @@ public class SecurityConfig {
 								.baseUri("/oauth2/authorization")
 								.authorizationRequestRepository(cookieAuthorizationRequestRepository)
 						)
-						// Khi login thành công thì chạy vào Handler này
 						.successHandler(customOAuth2SuccessHandler)
 						.failureUrl("/login?error=true")
 						.failureHandler((request, response, exception) -> {
 							System.out.println("------------------------------------------------");
 							System.out.println("OAUTH2 LOGIN FAILED: " + exception.getMessage());
-							exception.printStackTrace(); // In chi tiết lỗi ra console
+							exception.printStackTrace();
 							System.out.println("------------------------------------------------");
 							response.sendRedirect("/login?error=true");
 						})

@@ -63,8 +63,12 @@ public class EmailService implements NotificationService {
     }
 
     private String formatCurrency(Long amount) {
-        double displayAmount = amount != null ? amount / 100.0 : 0.0;
-        return NumberFormat.getCurrencyInstance(Locale.US).format(displayAmount);
+        // VNĐ không chia 100 như tiền xu (cents) của USD
+        double displayAmount = amount != null ? amount : 0.0;
+
+        // Sử dụng Locale của Việt Nam
+        NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
+        return format.format(displayAmount);
     }
 
 }

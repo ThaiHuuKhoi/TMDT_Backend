@@ -10,16 +10,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor // 1. Tự động tạo constructor cho userRepo
+@RequiredArgsConstructor
 public class MyUserDetailsService implements UserDetailsService {
 
 	private final UserRepo userRepo;
 
 	@Override
-	@Transactional // 2. Giữ kết nối DB để tránh lỗi Lazy Loading khi map sang UserPrincipal
+	@Transactional
 	public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
 		return userRepo.findByEmail(email)
-				.map(UserPrincipal::new) // 3. Code gọn hơn: Nếu tìm thấy User -> New UserPrincipal(user)
+				.map(UserPrincipal::new)
 				.orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 	}
 }

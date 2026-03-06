@@ -25,7 +25,7 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 
     private final UserRepo userRepository;
     private final JwtService jwtService;
-    private final TokenService tokenService; // 🌟 Inject TokenService để lưu RefreshToken
+    private final TokenService tokenService;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
@@ -34,7 +34,6 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         String name = oAuth2User.getAttribute("name");
         String providerId = oAuth2User.getAttribute("sub");
 
-        // Tìm hoặc tạo user
         User user = userRepository.findByEmail(email)
                 .orElseGet(() -> {
                     User newUser = User.builder()
@@ -54,28 +53,22 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
                     return userRepository.save(newUser);
                 });
 
-        // 🌟 1. CẤP PHÁT CẢ 2 TOKEN
+
         String accessToken = jwtService.generateToken(user.getEmail());
         String refreshToken = jwtService.generateRefreshToken(user.getEmail());
 
-        // 🌟 2. LƯU REFRESH TOKEN VÀO DATABASE
         tokenService.saveRefreshToken(user, refreshToken);
 
-        // 🌟 3. CÀI ĐẶT HTTP-ONLY COOKIE CHO REFRESH TOKEN (Bảo mật tuyệt đối)
-        // (Hàm addCookie của bạn trong CookieUtils đã mặc định set HttpOnly = true rồi)
-        CookieUtils.addCookie(response, "refreshToken", refreshToken, 7 * 24 * 60 * 60); // 7 ngày
+        CookieUtils.addCookie(response, "refreshToken", refreshToken, 7 * 24 * 60 * 60);
 
-        // 🌟 4. CHUYỂN GIAO ACCESS TOKEN BẰNG COOKIE TẠM THỜI
-        // Tạo một cookie thường (JS đọc được), chỉ sống 60 giây để Frontend đọc rồi tự hủy
+
         Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
         accessTokenCookie.setPath("/");
-        accessTokenCookie.setHttpOnly(false); // Cho phép JS (React/Vue) đọc được
-        accessTokenCookie.setMaxAge(60); // Tự động chết sau 60 giây
+        accessTokenCookie.setHttpOnly(false);
+        accessTokenCookie.setMaxAge(60);
         response.addCookie(accessTokenCookie);
 
-        // 🌟 5. REDIRECT VỀ FRONTEND VỚI URL SẠCH SẼ (Không dính dáng gì tới Token)
-        String targetUrl = UriComponentsBuilder.fromUriString("http://localhost:3003/oauth2/redirect")
-                // Đã XÓA dòng .queryParam("token", token) gây rò rỉ bảo mật
+        String targetUrl = UriComponentsBuilder.fromUriString("http://localhost:3002/oauth2/redirect")
                 .build().toUriString();
 
         getRedirectStrategy().sendRedirect(request, response, targetUrl);

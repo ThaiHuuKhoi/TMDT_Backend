@@ -8,6 +8,6 @@ import lombok.Data;
 public class CouponResponse {
     private boolean valid;
     private String message;
-    private Long discountAmount; // Số tiền được giảm
-    private Long finalPrice;     // Giá sau khi giảm
+    private Long discountAmount;
+    private Long finalPrice;
 }

@@ -13,7 +13,7 @@ import java.io.IOException;
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
-        // Trả về lỗi 401 Unauthorized thay vì 403 mặc định của Spring
+
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
         response.getWriter().write("{\"status\": 401, \"message\": \"Unauthorized: Token invalid or expired\"}");

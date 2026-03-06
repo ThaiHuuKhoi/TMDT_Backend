@@ -2,7 +2,6 @@ package com.KhoiCG.TMDT.modules.auth.controller;
 
 import com.KhoiCG.TMDT.modules.auth.service.AuthService;
 import com.KhoiCG.TMDT.modules.auth.dto.*;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -18,7 +17,6 @@ public class AuthController {
 
     private final AuthService authService;
 
-    // Helper method tạo Cookie an toàn
     private ResponseCookie createSecureCookie(String refreshToken) {
         return ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
@@ -62,7 +60,7 @@ public class AuthController {
 
         ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
                 .httpOnly(true).secure(true).path("/")
-                .maxAge(0) // 0 = Xóa ngay lập tức
+                .maxAge(0)
                 .sameSite("Strict").build();
 
         return ResponseEntity.ok()

@@ -12,10 +12,8 @@ import java.util.Optional;
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
     Optional<RefreshToken> findByToken(String token);
 
-    // Tìm token mới nhất của user để bỏ vào Cookie
     Optional<RefreshToken> findFirstByUserOrderByExpiryDateDesc(User user);
 
-    // Dùng cho logic Đăng xuất hoặc Reset Password (thu hồi tất cả phiên làm việc)
     void deleteByUser(User user);
 
     void deleteByExpiryDateBefore(LocalDateTime now);

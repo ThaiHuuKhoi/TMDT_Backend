@@ -34,7 +34,6 @@ public class PasswordResetToken {
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    // Kiểm tra xem token đã hết hạn chưa
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(this.expiryDate);
     }

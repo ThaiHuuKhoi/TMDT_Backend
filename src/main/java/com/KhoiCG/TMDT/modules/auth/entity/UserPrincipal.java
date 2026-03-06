@@ -14,10 +14,8 @@ import java.util.Collections;
 
 @Data
 @AllArgsConstructor
-public class UserPrincipal implements UserDetails { // Có thể implement thêm OAuth2User nếu muốn gộp chung
-
+public class UserPrincipal implements UserDetails {
 	private User user;
-	// private Map<String, Object> attributes; // Dành cho OAuth2 sau này nếu cần
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {

@@ -8,12 +8,11 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class KafkaConfig {
 
-    // Định nghĩa các topic sẽ dùng trong hệ thống
 
     @Bean
     public NewTopic productCreatedTopic() {
         return TopicBuilder.name("product.created")
-                .partitions(1) // Dev thì 1, Prod thì tăng lên
+                .partitions(1)
                 .replicas(1)
                 .build();
     }

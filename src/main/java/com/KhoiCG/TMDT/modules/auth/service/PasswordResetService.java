@@ -29,7 +29,7 @@ public class PasswordResetService {
         PasswordResetToken resetToken = PasswordResetToken.builder()
                 .token(token)
                 .user(user)
-                .expiryDate(LocalDateTime.now().plusMinutes(30)) // Hết hạn sau 30p
+                .expiryDate(LocalDateTime.now().plusMinutes(30))
                 .build();
 
         tokenRepository.save(resetToken);

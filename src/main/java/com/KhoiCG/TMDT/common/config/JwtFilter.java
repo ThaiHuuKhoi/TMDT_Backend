@@ -18,7 +18,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.servlet.HandlerExceptionResolver; // 🌟 Thêm import này
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.io.IOException;
 
@@ -32,7 +32,6 @@ public class JwtFilter extends OncePerRequestFilter {
     @Lazy
     private final UserDetailsService userDetailsService;
 
-    // 🌟 1. Gọi "Người giao liên" của Spring ra
     @Autowired
     @Qualifier("handlerExceptionResolver")
     private HandlerExceptionResolver exceptionResolver;
@@ -53,10 +52,9 @@ public class JwtFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 🌟 2. Đưa toàn bộ logic bóc tách token vào khối try-catch
         try {
             token = authHeader.substring(7);
-            userEmail = jwtService.extractUserName(token); // Nếu Token hết hạn, nổ ExpiredJwtException tại đây!
+            userEmail = jwtService.extractUserName(token);
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
@@ -72,12 +70,9 @@ public class JwtFilter extends OncePerRequestFilter {
                 }
             }
 
-            // Nếu mọi thứ êm đẹp, cho đi tiếp
             filterChain.doFilter(request, response);
 
         } catch (Exception e) {
-            // 🌟 3. Khi nổ lỗi (ExpiredJwtException, MalformedJwtException...),
-            // không ném ra ngoài Tomcat nữa mà nhờ Resolver ném thẳng vào GlobalExceptionHandler!
             log.error("JWT Authentication failed: {}", e.getMessage());
             exceptionResolver.resolveException(request, response, null, e);
         }
