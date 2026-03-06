@@ -48,28 +48,30 @@ public class WebhookController {
                 JsonNode rootNode = objectMapper.readTree(payload);
                 JsonNode sessionNode = rootNode.path("data").path("object");
 
-                String sessionId = sessionNode.path("id").asText();
+                String stripeOriginalSessionId = sessionNode.path("id").asText();
 
-                // Lấy userId mà chúng ta đã truyền vào từ StripeService
-                String userIdStr = sessionNode.path("client_reference_id").asText();
+                // Lấy txnRef mà chúng ta đã gửi đi lúc nãy
+                String txnRef = sessionNode.path("client_reference_id").asText();
 
-                if (userIdStr == null || userIdStr.isEmpty() || "null".equals(userIdStr)) {
-                    log.error("Cảnh báo: Không tìm thấy client_reference_id cho session {}", sessionId);
-                    return ResponseEntity.ok().build(); // Bỏ qua giao dịch lỗi này
+                if (txnRef == null || txnRef.isEmpty() || "null".equals(txnRef)) {
+                    log.error("Cảnh báo: Không tìm thấy client_reference_id cho session {}", stripeOriginalSessionId);
+                    return ResponseEntity.ok().build();
                 }
 
-                long amountTotal = sessionNode.path("amount_total").asLong(); // Lúc này amount_total chính là tiền VND chuẩn
+                long amountTotal = sessionNode.path("amount_total").asLong();
                 String email = sessionNode.path("customer_details").path("email").asText("unknown@mail.com");
 
-                log.info("Payment Succeeded - Session: {} | User: {}", sessionId, userIdStr);
+                log.info("Payment Succeeded - TxnRef: {}", txnRef);
 
                 PaymentSuccessEvent successEvent = new PaymentSuccessEvent();
-                successEvent.setUserId(userIdStr);
+                // Vì OrderService đang mong đợi sessionId (để tìm kiếm), ta nhét txnRef vào đây
+                successEvent.setSessionId(txnRef);
+                // Cập nhật các trường còn lại (Bạn có thể bỏ trường userId đi nếu muốn vì Kafka event chỉ cần sessionId/txnRef để confirm đơn)
                 successEvent.setEmail(email);
                 successEvent.setAmount(amountTotal);
                 successEvent.setStatus("success");
-                successEvent.setSessionId(sessionId);
 
+                // Đẩy thông báo lên Kafka -> OrderListener sẽ bắt lấy txnRef và gọi confirmOrderPayment(txnRef)
                 kafkaTemplate.send("payment.successful", successEvent);
 
             } catch (Exception e) {

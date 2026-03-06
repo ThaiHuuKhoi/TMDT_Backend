@@ -23,7 +23,6 @@ public class CartService {
     private final ProductVariantRepository variantRepository;
     private final UserRepo userRepo;
 
-    // 1. Lấy giỏ hàng của User (Nếu chưa có thì tự động tạo)
     @Transactional
     public Cart getOrCreateCart(Long userId) {
         return cartRepository.findByUserId(userId).orElseGet(() -> {
@@ -34,7 +33,6 @@ public class CartService {
         });
     }
 
-    // 2. Thêm vào giỏ hàng
     @Transactional
     public Cart addToCart(Long userId, Long variantId, Integer quantity) {
         Cart cart = getOrCreateCart(userId);
@@ -46,11 +44,9 @@ public class CartService {
             throw new RuntimeException("Số lượng tồn kho không đủ. Chỉ còn " + variant.getStockQuantity() + " sản phẩm.");
         }
 
-        // Kiểm tra xem sản phẩm đã có trong giỏ chưa
         Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndVariantId(cart.getId(), variantId);
 
         if (existingItem.isPresent()) {
-            // Đã có -> Cộng dồn số lượng
             CartItem item = existingItem.get();
             int newQuantity = item.getQuantity() + quantity;
             if (newQuantity > variant.getStockQuantity()) {
@@ -58,7 +54,6 @@ public class CartService {
             }
             item.setQuantity(newQuantity);
         } else {
-            // Chưa có -> Tạo mới item
             CartItem newItem = CartItem.builder()
                     .cart(cart)
                     .variant(variant)
@@ -70,7 +65,6 @@ public class CartService {
         return cartRepository.save(cart);
     }
 
-    // 3. Cập nhật số lượng của 1 món trong giỏ
     @Transactional
     public Cart updateItemQuantity(Long userId, Long variantId, Integer newQuantity) {
         Cart cart = getOrCreateCart(userId);
@@ -89,7 +83,6 @@ public class CartService {
         return cartRepository.save(cart);
     }
 
-    // 4. Xóa 1 món khỏi giỏ
     @Transactional
     public Cart removeItem(Long userId, Long variantId) {
         Cart cart = getOrCreateCart(userId);
@@ -97,7 +90,6 @@ public class CartService {
         return cartRepository.save(cart);
     }
 
-    // 5. Làm sạch giỏ hàng (Gọi hàm này sau khi Order thanh toán thành công)
     @Transactional
     public void clearCart(Long userId) {
         Cart cart = getOrCreateCart(userId);

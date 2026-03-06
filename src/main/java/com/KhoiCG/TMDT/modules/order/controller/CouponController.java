@@ -17,7 +17,7 @@ public class CouponController {
     private final CouponService couponService;
 
     @PostMapping("/create")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<Coupon> createCoupon(@RequestBody Coupon coupon) {
         return ResponseEntity.ok(couponService.createCoupon(coupon));
     }

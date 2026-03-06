@@ -29,6 +29,9 @@ public class ReviewService {
     @Transactional
     public Review createReview(Long userId, Long productId, Integer rating, String comment) {
 
+        if (reviewRepository.existsByUserIdAndProductId(userId, productId)) {
+            throw new RuntimeException("Bạn đã đánh giá sản phẩm này rồi!");
+        }
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
 
@@ -65,27 +68,4 @@ public class ReviewService {
         }).toList();
     }
 
-    // --- Hàm phụ: Tính toán rating ---
-    private void updateProductRating(Long productId) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-
-        List<Review> reviews = reviewRepository.findByProductId(productId);
-
-        if (reviews.isEmpty()) {
-            product.setAverageRating(0.0);
-            product.setReviewCount(0);
-        } else {
-            double average = reviews.stream()
-                    .mapToInt(Review::getRating)
-                    .average()
-                    .orElse(0.0);
-            double roundedAverage = Math.round(average * 10.0) / 10.0;
-
-            product.setAverageRating(roundedAverage);
-            product.setReviewCount(reviews.size());
-        }
-
-        productRepository.save(product);
-    }
 }

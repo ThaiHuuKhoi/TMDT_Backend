@@ -3,6 +3,8 @@ package com.KhoiCG.TMDT.modules.payment.controller;
 import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
 import com.KhoiCG.TMDT.modules.order.entity.Order;
 import com.KhoiCG.TMDT.modules.order.service.OrderService;
+import com.KhoiCG.TMDT.modules.payment.dto.CreateSessionRequest;
+import com.KhoiCG.TMDT.modules.payment.entity.Payment;
 import com.KhoiCG.TMDT.modules.payment.service.VNPayService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -23,20 +25,17 @@ public class VNPayController {
     private final VNPayService vnPayService;
     private final OrderService orderService;
 
-    // 1. API Gửi từ Frontend để lấy URL chuyển hướng sang VNPay
+    // Thay đổi @RequestBody để nhận DTO có chứa couponCode
     @PostMapping("/create-payment")
-    public ResponseEntity<?> createPayment(HttpServletRequest request) {
+    public ResponseEntity<?> createPayment(@RequestBody CreateSessionRequest request, HttpServletRequest httpRequest) {
         UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userDetails.getUser().getId();
 
-        // Sinh một mã giao dịch ngẫu nhiên (hoặc dùng System.currentTimeMillis())
         String txnRef = "VNPay_" + UUID.randomUUID().toString().substring(0, 8);
-        String ipAddress = request.getRemoteAddr();
+        String ipAddress = httpRequest.getRemoteAddr();
 
-        // Tận dụng luồng "Đóng băng giỏ hàng" cực an toàn đã viết trước đó
-        Order pendingOrder = orderService.createPendingOrder(userId, txnRef);
+        Order pendingOrder = orderService.createPendingOrder(userId, txnRef, request.getCouponCode());
 
-        // Tạo URL VNPay với số tiền của đơn hàng PENDING
         String paymentUrl = vnPayService.createOrder(
                 pendingOrder.getTotalAmount().longValue(),
                 "Thanh toan don hang " + txnRef,
@@ -59,7 +58,7 @@ public class VNPayController {
             if ("00".equals(vnp_ResponseCode)) {
                 // Gọi hàm Idempotency đã viết trước đó để chốt đơn & trừ kho
                 // (Vì hàm confirmOrderPayment nhận sessionId, ở đây ta truyền txnRef)
-                orderService.confirmOrderPayment(txnRef);
+                orderService.confirmOrderPayment(txnRef, Payment.PaymentMethod.VNPAY);
                 log.info("Xử lý IPN thành công cho giao dịch: {}", txnRef);
 
                 // Trả về định dạng mà VNPay yêu cầu để xác nhận đã nhận IPN

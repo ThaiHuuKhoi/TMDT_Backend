@@ -14,5 +14,5 @@ public class OrderItemResponse {
     private Integer quantity;
     private Long priceAtPurchase;
     private String priceFormatted;
-    private String productImage; //
+    private String productImage;
 }

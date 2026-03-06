@@ -46,7 +46,7 @@ public class ProductVariant {
     @Builder.Default
     private Boolean isActive = true;
 
-    @ManyToMany(fetch = FetchType.EAGER)
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "variant_attribute_values",
             joinColumns = @JoinColumn(name = "variant_id"),

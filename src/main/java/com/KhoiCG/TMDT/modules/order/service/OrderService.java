@@ -1,12 +1,10 @@
 package com.KhoiCG.TMDT.modules.order.service;
 
-import com.KhoiCG.TMDT.modules.order.dto.OrderChartResponse;
-import com.KhoiCG.TMDT.modules.order.dto.OrderCreatedEvent;
-import com.KhoiCG.TMDT.modules.order.dto.OrderResponse;
-import com.KhoiCG.TMDT.modules.order.dto.PaymentSuccessEvent;
+import com.KhoiCG.TMDT.modules.order.dto.*;
 import com.KhoiCG.TMDT.modules.order.entity.*;
 import com.KhoiCG.TMDT.modules.order.event.OrderCompletedEvent;
 import com.KhoiCG.TMDT.modules.order.mapper.OrderMapper;
+import com.KhoiCG.TMDT.modules.order.repository.CouponRepository;
 import com.KhoiCG.TMDT.modules.order.repository.OrderRepository;
 import com.KhoiCG.TMDT.modules.payment.entity.Payment;
 import com.KhoiCG.TMDT.modules.payment.repository.PaymentRepository;
@@ -15,7 +13,6 @@ import com.KhoiCG.TMDT.modules.product.entity.ProductVariant;
 import com.KhoiCG.TMDT.modules.product.service.InventoryService;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.repository.UserRepo;
-import com.stripe.model.checkout.Session;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +20,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -45,55 +41,9 @@ public class OrderService {
     private final InventoryService inventoryService;
     private final ApplicationEventPublisher eventPublisher;
     private final PaymentRepository paymentRepository;
+    private final CouponService couponService;
+    private final CouponRepository couponRepository;
 
-    @Transactional
-    public Order createOrderFromStripe(String sessionId) {
-        Order order = orderRepository.findByStripeSessionId(sessionId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch này!"));
-
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new RuntimeException("Đơn hàng này đã được xử lý!");
-        }
-
-        try {
-            // 1. Kiểm tra Stripe
-            Session session = stripeService.retrieveSession(sessionId);
-            if (!"paid".equals(session.getPaymentStatus())) {
-                throw new RuntimeException("Thanh toán chưa hoàn tất trên Stripe");
-            }
-
-            BigDecimal stripeTotal = BigDecimal.valueOf(session.getAmountTotal() / 100.0);
-            if (order.getTotalAmount().compareTo(stripeTotal) != 0) {
-                throw new RuntimeException("Số tiền thanh toán trên Stripe không khớp với hệ thống!");
-            }
-
-            // 2. Trừ kho (Gọi hàm từ InventoryService)
-            inventoryService.deductInventoryForOrder(order.getItems());
-
-            // 3. Cập nhật trạng thái
-            order.setStatus(OrderStatus.COMPLETED);
-            order.addStatusHistory(OrderStatusHistory.builder()
-                    .status(OrderStatus.COMPLETED)
-                    .note("Thanh toán Stripe thành công.")
-                    .build());
-
-            Order savedOrder = orderRepository.save(order);
-
-            // 4. Phát sự kiện để xử lý giỏ hàng & gửi Kafka (Hoàn toàn tách biệt)
-            eventPublisher.publishEvent(new OrderCompletedEvent(savedOrder));
-
-            return savedOrder;
-
-        } catch (ObjectOptimisticLockingFailureException e) {
-            log.error("Xung đột dữ liệu tồn kho", e);
-            throw new RuntimeException("Rất tiếc, sản phẩm bạn chọn vừa hết hàng. Vui lòng liên hệ hoàn tiền!");
-        } catch (Exception e) {
-            log.error("Lỗi thanh toán: ", e);
-            throw new RuntimeException(e.getMessage());
-        }
-    }
-
-    // --- 1. Xử lý tạo Order từ Kafka ---
     @Transactional
     public void createOrder(PaymentSuccessEvent event) {
         try {
@@ -193,7 +143,7 @@ public class OrderService {
 
     // 1. Tạo đơn hàng PENDING (Snapshot giỏ hàng) trước khi thanh toán
     @Transactional
-    public Order createPendingOrder(Long userId, String stripeSessionId) {
+    public Order createPendingOrder(Long userId, String stripeSessionId, String couponCode) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
 
@@ -221,7 +171,7 @@ public class OrderService {
             }
 
             BigDecimal lineTotal = variant.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity()));
-            totalAmount = totalAmount.add(lineTotal);
+            totalAmount = totalAmount.add(lineTotal); // Cộng dồn tiền hàng (Chưa giảm giá)
 
             OrderItem orderItem = OrderItem.builder()
                     .variant(variant)
@@ -234,12 +184,32 @@ public class OrderService {
             order.addOrderItem(orderItem);
         }
 
+        // --- BỔ SUNG LOGIC XỬ LÝ MÃ GIẢM GIÁ Ở ĐÂY ---
+        if (couponCode != null && !couponCode.isBlank()) {
+            CouponCheckRequest checkReq = new CouponCheckRequest();
+            checkReq.setCode(couponCode);
+            checkReq.setOrderAmount(totalAmount.longValue());
+
+            CouponResponse couponCheck = couponService.applyCoupon(checkReq);
+
+            if (couponCheck.isValid()) {
+                Coupon coupon = couponRepository.findByCode(couponCode.toUpperCase()).orElse(null);
+
+                order.setCoupon(coupon);
+                order.setDiscountAmount(BigDecimal.valueOf(couponCheck.getDiscountAmount()));
+
+                totalAmount = BigDecimal.valueOf(couponCheck.getFinalPrice());
+            } else {
+                throw new RuntimeException("Mã giảm giá không hợp lệ: " + couponCheck.getMessage());
+            }
+        }
+
         order.setTotalAmount(totalAmount);
         return orderRepository.save(order);
     }
 
     @Transactional
-    public Order confirmOrderPayment(String sessionId) {
+    public Order confirmOrderPayment(String sessionId, Payment.PaymentMethod paymentMethod) {
 
         //  1. IDEMPOTENCY CHECK: Kẻ gác cổng
         if (paymentRepository.findByTransactionId(sessionId).isPresent()) {
@@ -257,8 +227,13 @@ public class OrderService {
         }
 
         try {
-            // 3. Trừ kho (Gọi hàm từ InventoryService như đã tối ưu ở phần SOLID)
             inventoryService.deductInventoryForOrder(order.getItems());
+
+            if (order.getCoupon() != null) {
+                Coupon coupon = order.getCoupon();
+                coupon.setUsedCount(coupon.getUsedCount() + 1);
+                couponRepository.save(coupon);
+            }
 
             // 4. Cập nhật trạng thái Order
             order.setStatus(OrderStatus.COMPLETED);
@@ -273,7 +248,7 @@ public class OrderService {
             // Lần sau webhook/frontend có gọi lại sessionId này thì sẽ bị chặn ở bước 1
             Payment payment = Payment.builder()
                     .order(savedOrder)
-                    .paymentMethod(Payment.PaymentMethod.STRIPE)
+                    .paymentMethod(paymentMethod)
                     .transactionId(sessionId)
                     .amount(savedOrder.getTotalAmount())
                     .status(Payment.PaymentStatus.SUCCESS)

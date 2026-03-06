@@ -33,9 +33,10 @@ public class User {
 	@Builder.Default
 	private Boolean isActive = true;
 
-	// Mapping với bảng user_providers
+	@Column(name = "avatar")
+	private String avatar;
+
 	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-	@Builder.Default
 	private List<UserProvider> providers = new ArrayList<>();
 
 	@CreationTimestamp
@@ -44,4 +45,11 @@ public class User {
 
 	@UpdateTimestamp
 	private LocalDateTime updatedAt;
+
+	public List<UserProvider> getProviders() {
+		if (this.providers == null) {
+			this.providers = new ArrayList<>();
+		}
+		return this.providers;
+	}
 }

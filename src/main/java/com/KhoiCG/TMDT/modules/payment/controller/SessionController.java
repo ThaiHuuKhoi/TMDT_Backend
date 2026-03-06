@@ -1,6 +1,8 @@
 package com.KhoiCG.TMDT.modules.payment.controller;
 
 import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
+import com.KhoiCG.TMDT.modules.order.entity.Order;
+import com.KhoiCG.TMDT.modules.order.service.OrderService;
 import com.KhoiCG.TMDT.modules.payment.dto.CreateSessionRequest;
 import com.KhoiCG.TMDT.modules.payment.service.StripeService;
 import com.stripe.exception.StripeException;
@@ -11,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("api/sessions")
@@ -18,6 +21,7 @@ import java.util.Map;
 public class SessionController {
 
     private final StripeService stripeService;
+    private final OrderService orderService;
 
     @PostMapping("/create-checkout-session")
     public ResponseEntity<?> createCheckoutSession(@RequestBody CreateSessionRequest request) {
@@ -30,7 +34,19 @@ public class SessionController {
             UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             Long userId = userDetails.getUser().getId();
 
-            String clientSecret = stripeService.createCheckoutSession(userId, request.getCouponCode());
+            // 1. Sinh mã giao dịch duy nhất
+            String txnRef = "STRIPE_" + UUID.randomUUID().toString().substring(0, 8);
+
+            // 2. Chốt đơn hàng và lấy số tiền (Lock data)
+            Order pendingOrder = orderService.createPendingOrder(userId, txnRef, request.getCouponCode());
+
+            // 3. Gọi Stripe tạo session với số tiền đã chốt
+            String clientSecret = stripeService.createCheckoutSession(
+                    userId,
+                    pendingOrder.getTotalAmount().longValue(),
+                    "Thanh toán đơn hàng " + txnRef,
+                    txnRef // Truyền txnRef sang Stripe
+            );
 
             return ResponseEntity.ok(Map.of("clientSecret", clientSecret));
         } catch (RuntimeException e) {

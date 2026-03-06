@@ -6,5 +6,5 @@ import lombok.Data;
 public class ProductCreatedEvent {
     private String id;
     private String name;
-    private Long price; // Java dùng Long thay vì number
+    private Long price;
 }

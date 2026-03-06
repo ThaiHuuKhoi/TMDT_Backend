@@ -5,8 +5,8 @@ import com.KhoiCG.TMDT.modules.order.dto.OrderChartResponse;
 import com.KhoiCG.TMDT.modules.order.dto.OrderResponse;
 import com.KhoiCG.TMDT.modules.order.entity.Order;
 import com.KhoiCG.TMDT.modules.order.service.OrderService;
-import com.KhoiCG.TMDT.modules.payment.service.StripeService;
 import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
+import com.KhoiCG.TMDT.modules.payment.entity.Payment;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,34 +23,21 @@ import java.util.Map;
 public class OrderController {
 
     private final OrderService orderService;
-    private final StripeService stripeService;
+
+    // Đã XÓA: private final StripeService stripeService; (Giải quyết dứt điểm phụ thuộc vòng tròn)
 
     @PostMapping("/create-from-stripe")
     public ResponseEntity<?> createOrderFromStripe(@RequestParam String sessionId) {
         try {
-            Order order = orderService.confirmOrderPayment(sessionId);
+            Order order = orderService.confirmOrderPayment(sessionId, Payment.PaymentMethod.STRIPE);
             return ResponseEntity.ok(order);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 
-    @PostMapping("/create-checkout-session")
-    public ResponseEntity<?> createCheckoutSession(@RequestBody CheckoutRequest request) {
-        try {
-            UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            Long userId = userDetails.getUser().getId();
-
-            String sessionId = stripeService.createCheckoutSession(userId, request.getCouponCode());
-
-            orderService.createPendingOrder(userId, sessionId);
-
-            return ResponseEntity.ok(Map.of("sessionId", sessionId));
-
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
-    }
+    // Đã XÓA: API /create-checkout-session ở đây.
+    // Frontend từ nay sẽ gọi POST /api/sessions/create-checkout-session (bên module payment) để lấy link Stripe nhé!
 
     @GetMapping("/user-orders")
     public ResponseEntity<List<OrderResponse>> getUserOrders() {

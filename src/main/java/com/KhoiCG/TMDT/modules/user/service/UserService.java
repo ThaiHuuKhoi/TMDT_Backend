@@ -32,11 +32,13 @@ public class UserService {
         userRepo.save(user);
     }
 
+    @Transactional
     public UserResponse updateProfile(String email, UserUpdateRequest request) {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (request.getName() != null) user.setName(request.getName());
+        if (request.getAvatar() != null) user.setAvatar(request.getAvatar());
 
         return mapToResponse(userRepo.save(user));
     }
@@ -47,6 +49,8 @@ public class UserService {
                 .name(user.getName())
                 .email(user.getEmail())
                 .role(user.getRole())
+                .avatar(user.getAvatar())
+                .isActive(user.getIsActive())
                 .build();
     }
 }
