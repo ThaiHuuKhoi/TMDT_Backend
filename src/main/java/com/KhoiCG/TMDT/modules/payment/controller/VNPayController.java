@@ -1,6 +1,6 @@
 package com.KhoiCG.TMDT.modules.payment.controller;
 
-import com.KhoiCG.TMDT.modules.auth.entity.UserPrincipal;
+import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
 import com.KhoiCG.TMDT.modules.order.entity.Order;
 import com.KhoiCG.TMDT.modules.order.service.OrderService;
 import com.KhoiCG.TMDT.modules.payment.service.VNPayService;
@@ -11,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 

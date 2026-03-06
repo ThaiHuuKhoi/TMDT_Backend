@@ -1,6 +1,5 @@
-package com.KhoiCG.TMDT.modules.auth.service;
+package com.KhoiCG.TMDT.modules.auth.security;
 
-import com.KhoiCG.TMDT.modules.auth.entity.UserPrincipal;
 import com.KhoiCG.TMDT.modules.user.repository.UserRepo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;

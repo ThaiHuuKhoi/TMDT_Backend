@@ -1,4 +1,4 @@
-package com.KhoiCG.TMDT.modules.auth.entity;
+package com.KhoiCG.TMDT.modules.auth.security;
 
 import com.KhoiCG.TMDT.modules.user.entity.AuthProvider;
 import com.KhoiCG.TMDT.modules.user.entity.User;

@@ -1,7 +1,9 @@
 package com.KhoiCG.TMDT.modules.auth.controller;
 
 import com.KhoiCG.TMDT.modules.auth.service.AuthService;
+import com.KhoiCG.TMDT.modules.auth.service.JwtService;
 import com.KhoiCG.TMDT.modules.auth.dto.*;
+import com.KhoiCG.TMDT.modules.auth.service.PasswordResetService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -10,19 +12,24 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
+    private final JwtService jwtService;
 
     private ResponseCookie createSecureCookie(String refreshToken) {
+        long maxAgeInSeconds = jwtService.getRefreshExpiration() / 1000;
+
         return ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
-                .maxAge(7 * 24 * 60 * 60)
+                .maxAge(maxAgeInSeconds)
                 .sameSite("Strict")
                 .build();
     }
@@ -66,5 +73,22 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body("Logged out successfully");
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<String> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
+        try {
+            passwordResetService.processForgotPassword(request.getEmail());
+        } catch (Exception e) {
+            // Best practice: Luôn trả về thông báo thành công chung chung để chống dò rỉ email (User Enumeration)
+            // Dù email có sai hay đúng thì hacker cũng không biết được.
+        }
+        return ResponseEntity.ok("Nếu email của bạn tồn tại trong hệ thống, hướng dẫn khôi phục mật khẩu sẽ được gửi đến hộp thư.");
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<String> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+        passwordResetService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok("Đổi mật khẩu thành công. Vui lòng đăng nhập lại với mật khẩu mới.");
     }
 }

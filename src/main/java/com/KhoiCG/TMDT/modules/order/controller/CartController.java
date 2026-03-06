@@ -1,6 +1,6 @@
 package com.KhoiCG.TMDT.modules.order.controller;
 
-import com.KhoiCG.TMDT.modules.auth.entity.UserPrincipal;
+import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
 import com.KhoiCG.TMDT.modules.order.dto.CartRequest;
 import com.KhoiCG.TMDT.modules.order.entity.Cart;
 import com.KhoiCG.TMDT.modules.order.service.CartService;

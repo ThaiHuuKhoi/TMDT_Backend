@@ -6,7 +6,7 @@ import com.KhoiCG.TMDT.modules.order.dto.OrderResponse;
 import com.KhoiCG.TMDT.modules.order.entity.Order;
 import com.KhoiCG.TMDT.modules.order.service.OrderService;
 import com.KhoiCG.TMDT.modules.payment.service.StripeService;
-import com.KhoiCG.TMDT.modules.auth.entity.UserPrincipal;
+import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

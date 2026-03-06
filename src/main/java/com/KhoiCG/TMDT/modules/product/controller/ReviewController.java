@@ -4,7 +4,7 @@ import com.KhoiCG.TMDT.modules.product.dto.ReviewRequest;
 import com.KhoiCG.TMDT.modules.product.dto.ReviewResponseDto;
 import com.KhoiCG.TMDT.modules.product.entity.Review;
 import com.KhoiCG.TMDT.modules.product.service.ReviewService;
-import com.KhoiCG.TMDT.modules.auth.entity.UserPrincipal;
+import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;

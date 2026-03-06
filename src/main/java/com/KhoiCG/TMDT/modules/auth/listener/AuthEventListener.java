@@ -1,7 +1,7 @@
 package com.KhoiCG.TMDT.modules.auth.listener;
 
+import com.KhoiCG.TMDT.common.event.UserCreatedEvent;
 import com.KhoiCG.TMDT.modules.auth.event.UserRegisteredEvent;
-import com.KhoiCG.TMDT.modules.email.dto.UserCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -21,17 +21,17 @@ public class AuthEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleUserRegisteredEvent(UserRegisteredEvent event) {
         try {
-            // Map sang DTO dùng cho Kafka
-            UserCreatedEvent kafkaEvent = new UserCreatedEvent();
-            kafkaEvent.setEmail(event.getUser().getEmail());
-            kafkaEvent.setUsername(event.getUser().getName());
 
-            // Đẩy sang Kafka cho Email Service xử lý
+            UserCreatedEvent kafkaEvent = UserCreatedEvent.builder()
+                    .email(event.getUser().getEmail())
+                    .username(event.getUser().getName())
+                    .build();
+
+
             kafkaTemplate.send("user.created", kafkaEvent);
-            log.info("Đã đẩy event tạo user lên Kafka cho email: {}", event.getUser().getEmail());
+            log.info("Đã đẩy event tạo user lên Kafka: {}", event.getUser().getEmail());
 
         } catch (Exception e) {
-            // Nếu gửi Kafka thất bại, chỉ ghi log. Không làm rollback đơn đăng ký của user.
             log.error("Lỗi khi gửi Kafka event user.created: {}", e.getMessage());
         }
     }

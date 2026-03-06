@@ -1,6 +1,6 @@
 package com.KhoiCG.TMDT.modules.product.controller;
 
-import com.KhoiCG.TMDT.modules.auth.entity.UserPrincipal;
+import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
 import com.KhoiCG.TMDT.modules.product.service.WishListService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
