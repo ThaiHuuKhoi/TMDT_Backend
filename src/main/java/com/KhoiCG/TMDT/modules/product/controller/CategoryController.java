@@ -1,7 +1,7 @@
 package com.KhoiCG.TMDT.modules.product.controller;
 
 import com.KhoiCG.TMDT.modules.product.entity.Category;
-import com.KhoiCG.TMDT.modules.product.repository.CategoryRepository;
+import com.KhoiCG.TMDT.modules.product.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,19 +14,29 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CategoryController {
 
-    private final CategoryRepository categoryRepository;
+    private final CategoryService categoryService;
 
     @GetMapping
     public ResponseEntity<List<Category>> getCategories() {
-
-        return ResponseEntity.ok(categoryRepository.findAll());
+        return ResponseEntity.ok(categoryService.getAllCategories());
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<Category> createCategory(@RequestBody Category category) {
-        return ResponseEntity.ok(categoryRepository.save(category));
+        return ResponseEntity.ok(categoryService.createCategory(category));
     }
 
-    // Các method Update/Delete tương tự
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<Category> updateCategory(@PathVariable Long id, @RequestBody Category category) {
+        return ResponseEntity.ok(categoryService.updateCategory(id, category));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
+        categoryService.deleteCategory(id);
+        return ResponseEntity.noContent().build();
+    }
 }

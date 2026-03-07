@@ -9,6 +9,9 @@ import com.KhoiCG.TMDT.modules.product.repository.*;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -26,6 +29,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j // Thêm log để bạn dễ theo dõi Redis hoạt động
 public class ProductService {
 
     private final ProductMapper productMapper;
@@ -34,23 +38,19 @@ public class ProductService {
     private final ProductVariantRepository variantRepository;
     private final AttributeRepository attributeRepository;
     private final AttributeValueRepository attributeValueRepository;
-//    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    @Transactional // Bắt buộc phải có để rollback nếu 1 bước bị lỗi
+    @Transactional
     public Product createProduct(CreateProductRequest req) {
-
-        // 1. Tìm Category
+        // ... (Logic của bạn giữ nguyên hoàn toàn)
         Category category = categoryRepository.findBySlug(req.getCategorySlug())
                 .orElseThrow(() -> new RuntimeException("Category không tồn tại: " + req.getCategorySlug()));
 
-        // 2. Xử lý trùng lặp SKU trước khi tạo
         for (CreateProductRequest.VariantDto v : req.getVariants()) {
             if (variantRepository.existsBySku(v.getSku())) {
                 throw new RuntimeException("SKU đã tồn tại trong hệ thống: " + v.getSku());
             }
         }
 
-        // 3. Khởi tạo đối tượng Product chính
         String productSlug = generateUniqueSlug(req.getName());
 
         Product product = Product.builder()
@@ -64,7 +64,6 @@ public class ProductService {
                 .images(new ArrayList<>())
                 .build();
 
-        // 4. Xử lý Hình ảnh chung (Product Images)
         if (req.getImageUrls() != null) {
             for (int i = 0; i < req.getImageUrls().size(); i++) {
                 ProductImage image = ProductImage.builder()
@@ -77,10 +76,7 @@ public class ProductService {
             }
         }
 
-        // 5. Xử lý các Biến thể (Variants) & Thuộc tính (Attributes)
         for (CreateProductRequest.VariantDto variantDto : req.getVariants()) {
-
-            // Khởi tạo Biến thể
             ProductVariant variant = ProductVariant.builder()
                     .product(product)
                     .sku(variantDto.getSku())
@@ -89,62 +85,41 @@ public class ProductService {
                     .attributeValues(new ArrayList<>())
                     .build();
 
-            // Duyệt qua map Thuộc tính (VD: "Color" -> "Red", "Size" -> "XL")
             for (Map.Entry<String, String> entry : variantDto.getAttributes().entrySet()) {
                 String attrName = entry.getKey();
                 String attrValueStr = entry.getValue();
 
-                // 5.1 Lấy hoặc Tạo mới Attribute (VD: "Color")
                 Attribute attribute = attributeRepository.findByNameIgnoreCase(attrName)
                         .orElseGet(() -> attributeRepository.save(Attribute.builder().name(attrName).build()));
 
-                // 5.2 Lấy hoặc Tạo mới AttributeValue (VD: "Red" thuộc "Color")
                 AttributeValue attributeValue = attributeValueRepository
                         .findByAttributeIdAndValueIgnoreCase(attribute.getId(), attrValueStr)
                         .orElseGet(() -> attributeValueRepository.save(
                                 AttributeValue.builder().attribute(attribute).value(attrValueStr).build()
                         ));
 
-                // Gắn giá trị thuộc tính vào biến thể này
                 variant.getAttributeValues().add(attributeValue);
             }
-
             product.getVariants().add(variant);
         }
 
-        // 6. Lưu toàn bộ (Nhờ CascadeType.ALL, Product, Images và Variants sẽ tự động được lưu cùng nhau)
-        Product savedProduct = productRepository.save(product);
-
-        //   kafkaTemplate.send("product.created", stripeDto);
-
-        return savedProduct;
+        return productRepository.save(product);
     }
 
-    // --- Get Products with Filters ---
     public List<ProductResponse> getProducts(String categorySlug, String search, String sortStr, int limit) {
-
-        // 1. Xây dựng Specification (Dynamic Query WHERE clause)
+        // ... (Logic giữ nguyên)
         Specification<Product> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-
-            // Filter by Category Slug
             if (StringUtils.hasText(categorySlug)) {
-                // Join bảng Category để check slug
                 predicates.add(cb.equal(root.get("category").get("slug"), categorySlug));
             }
-
-            // Filter by Search Name (Insensitive)
             if (StringUtils.hasText(search)) {
                 predicates.add(cb.like(cb.lower(root.get("name")), "%" + search.toLowerCase() + "%"));
             }
-
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        // 2. Xử lý Sort
         Sort sort = ProductSortType.getSortStrategy(sortStr);
-
-        // 3. Xử lý Limit (Phân trang)
         Pageable pageable = limit > 0 ? PageRequest.of(0, limit, sort) : PageRequest.of(0, 100, sort);
 
         List<Product> products = productRepository.findAll(spec, pageable).getContent();
@@ -153,26 +128,30 @@ public class ProductService {
                 .collect(Collectors.toList());
     }
 
-    // --- Delete Product ---
+    // --- XÓA SẢN PHẨM: BẮT BUỘC PHẢI XÓA CACHE ---
+    @CacheEvict(value = "product_details", key = "#id")
     public void deleteProduct(Long id) {
         if (productRepository.existsById(id)) {
             productRepository.deleteById(id);
-            // Kafka send ID as String or Long depending on Consumer expectation
-            // Node code gửi: { value: Number(id) } -> Java gửi Long
-//            kafkaTemplate.send("product.deleted", id.toString());
+            log.info("🧹 Đã xóa cache của sản phẩm ID: {}", id);
         } else {
             throw new RuntimeException("Product not found");
         }
     }
 
-    // --- Update, Get One... (Tương tự) ---
+    // --- LẤY CHI TIẾT SẢN PHẨM: ÁP DỤNG CACHE TẠI ĐÂY ---
+    @Cacheable(value = "product_details", key = "#id")
     public ProductResponse getProduct(Long id) {
+        log.info("🚀 [CACHE MISS] - Phải query Database để lấy sản phẩm ID: {}", id);
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Not found"));
         return productMapper.toProductResponse(product);
     }
 
+    // --- LẤY SẢN PHẨM LIÊN QUAN: ÁP DỤNG CACHE ---
+    @Cacheable(value = "product_details", key = "'related_' + #currentProductId")
     public List<ProductResponse> getRelatedProducts(Long currentProductId) {
+        log.info("🚀 [CACHE MISS] - Phải query Database để lấy sản phẩm liên quan cho ID: {}", currentProductId);
         ProductResponse currentProduct = getProduct(currentProductId);
         Long categoryId = currentProduct.getCategory().getId();
 

@@ -3,7 +3,7 @@ package com.KhoiCG.TMDT.modules.order.listener;
 import com.KhoiCG.TMDT.modules.order.dto.PaymentSuccessEvent;
 import com.KhoiCG.TMDT.modules.order.service.OrderService;
 import com.KhoiCG.TMDT.modules.payment.entity.Payment;
-import com.fasterxml.jackson.databind.ObjectMapper; // 👇 Import thư viện Jackson
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;

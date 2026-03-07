@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+<div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+    <div style="background-color: #000; color: #fff; padding: 20px; text-align: center;">
+        <h2 style="margin: 0;">Cảm ơn bạn đã đặt hàng!</h2>
+    </div>
+    <div style="padding: 20px;">
+        <p>Xin chào,</p>
+        <p>Đơn hàng của bạn đã được hệ thống ghi nhận và thanh toán thành công.</p>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; border: 1px solid #ddd;"><strong>Tổng thanh toán:</strong></td>
+                <td style="padding: 10px; border: 1px solid #ddd; color: #2ecc71; font-weight: bold;" th:text="${price}">$0.00</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd;"><strong>Trạng thái:</strong></td>
+                <td style="padding: 10px; border: 1px solid #ddd;" th:text="${status}">PENDING</td>
+            </tr>
+        </table>
+        <p style="margin-top: 20px;">Chúng tôi sẽ sớm gửi thông tin vận chuyển đến bạn.</p>
+        <a href="http://localhost:3002/orders" style="display: inline-block; background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Xem đơn hàng</a>
+    </div>
+    <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; color: #666;">
+        &copy; 2026 ShopKCG. All rights reserved.
+    </div>
+</div>
+</body>
+</html>

@@ -39,3 +39,25 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+  # 4. Redis Server: Hệ thống In-Memory Cache siêu tốc
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+       - redis_data:/data # Lưu trữ xuống ổ cứng để tắt Docker không bị mất dữ liệu
+
+  # 5. Redis Insight: Giao diện web quản lý Redis (Giống Kafka UI)
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: redis-insight
+    depends_on:
+      - redis
+    ports:
+      - "5540:5540"
+
+# Thêm block volumes này ở cuối cùng của file (ngang hàng với 'services:')
+volumes:
+  redis_data:
