@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j // Thêm log để bạn dễ theo dõi Redis hoạt động
+@Slf4j
 public class ProductService {
 
     private final ProductMapper productMapper;
