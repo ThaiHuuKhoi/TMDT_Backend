@@ -10,17 +10,17 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j // Bổ sung log để theo dõi Redis
+@Slf4j
 public class BannerService {
 
     private final BannerRepository bannerRepository;
 
-    // 1. ÁP DỤNG CACHE KHI LẤY DỮ LIỆU
-    // Dùng key tĩnh 'active' vì hàm này luôn trả về cùng 1 danh sách cho tất cả người dùng
+    // --- DÀNH CHO HOMEPAGE (CÓ CACHE) ---
     @Cacheable(value = "banners", key = "'active'")
     public List<BannerResponse> getActiveBanners() {
         log.info("🚀 [CACHE MISS] - Đang query Database để lấy danh sách Banner quảng cáo...");
@@ -30,8 +30,14 @@ public class BannerService {
                 .toList();
     }
 
-    // 2. XÓA CACHE KHI THÊM/SỬA DỮ LIỆU
-    // allEntries = true: Xóa sạch toàn bộ rác trong hộp chứa "banners"
+    // --- DÀNH CHO ADMIN DASHBOARD (KHÔNG CACHE) ---
+    public List<BannerResponse> getAllBanners() {
+        return bannerRepository.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
     @CacheEvict(value = "banners", allEntries = true)
     @Transactional
     public BannerResponse saveBanner(BannerRequest request) {
@@ -44,13 +50,13 @@ public class BannerService {
                 .targetId(request.getTargetId())
                 .linkUrl(request.getLinkUrl())
                 .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
-                .isActive(true) // Có thể bạn sẽ muốn update thêm logic bật/tắt banner sau này
+                // Lấy trạng thái từ Request (Frontend truyền xuống)
+                .isActive(request.getIsActive() != null ? request.getIsActive() : true)
                 .build();
 
         return mapToResponse(bannerRepository.save(banner));
     }
 
-    // 3. XÓA CACHE KHI XÓA DỮ LIỆU
     @CacheEvict(value = "banners", allEntries = true)
     @Transactional
     public void deleteBanner(Long id) {
@@ -61,20 +67,29 @@ public class BannerService {
         bannerRepository.deleteById(id);
     }
 
+    // Hàm chuyển đổi Entity -> DTO
     private BannerResponse mapToResponse(Banner banner) {
-        String finalUrl = switch (banner.getTargetType()) {
-            case PRODUCT -> "/products/" + banner.getTargetId();
-            case CATEGORY -> "/categories/" + banner.getTargetId();
-            case EXTERNAL_LINK -> banner.getLinkUrl();
-        };
+        String finalUrl = "";
+        if (banner.getTargetType() != null) {
+            finalUrl = switch (banner.getTargetType()) {
+                case PRODUCT -> "/products/" + banner.getTargetId();
+                case CATEGORY -> "/categories/" + banner.getTargetId();
+                case EXTERNAL_LINK -> banner.getLinkUrl();
+            };
+        }
 
         return BannerResponse.builder()
                 .id(banner.getId())
                 .title(banner.getTitle())
                 .description(banner.getDescription())
                 .imageUrl(banner.getImageUrl())
-                .targetUrl(finalUrl)
+                .targetUrl(finalUrl) // Dành cho Slider ở Homepage
                 .displayOrder(banner.getDisplayOrder())
+                // Trả về thêm dữ liệu cho Bảng quản trị Admin
+                .targetType(banner.getTargetType())
+                .targetId(banner.getTargetId())
+                .linkUrl(banner.getLinkUrl())
+                .isActive(banner.getIsActive())
                 .build();
     }
 }

@@ -24,8 +24,6 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    // Đã XÓA: private final StripeService stripeService; (Giải quyết dứt điểm phụ thuộc vòng tròn)
-
     @PostMapping("/create-from-stripe")
     public ResponseEntity<?> createOrderFromStripe(@RequestParam String sessionId) {
         try {

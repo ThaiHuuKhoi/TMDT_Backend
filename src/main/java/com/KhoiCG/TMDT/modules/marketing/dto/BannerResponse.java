@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.marketing.dto;
 
+import com.KhoiCG.TMDT.modules.marketing.entity.TargetType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,4 +13,8 @@ public class BannerResponse {
     private String imageUrl;
     private String targetUrl;
     private int displayOrder;
+    private TargetType targetType;
+    private Long targetId;
+    private String linkUrl;
+    private Boolean isActive;
 }

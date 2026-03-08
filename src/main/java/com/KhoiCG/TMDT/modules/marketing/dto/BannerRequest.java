@@ -12,4 +12,5 @@ public class BannerRequest {
     private Long targetId;
     private String linkUrl;
     private Integer displayOrder;
+    private Boolean isActive;
 }

@@ -33,4 +33,10 @@ public class BannerController {
         bannerService.deleteBanner(id);
         return ResponseEntity.ok("Banner đã được xóa thành công");
     }
+
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<List<BannerResponse>> getAllBannersForAdmin() {
+        return ResponseEntity.ok(bannerService.getAllBanners());
+    }
 }

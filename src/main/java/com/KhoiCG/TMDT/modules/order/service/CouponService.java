@@ -60,4 +60,15 @@ public class CouponService {
 
         return new CouponResponse(true, "Áp dụng thành công", discount, finalPrice);
     }
+
+    public java.util.List<Coupon> getAllCoupons() {
+        return couponRepository.findAll();
+    }
+
+    public void toggleCouponStatus(Long id, boolean isActive) {
+        Coupon coupon = couponRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy mã giảm giá!"));
+        coupon.setIsActive(isActive);
+        couponRepository.save(coupon);
+    }
 }
