@@ -19,7 +19,6 @@ public class WishList {
     @EmbeddedId
     private WishListId id;
 
-    // Maps relations (Chỉ dùng để lấy data, không dùng để insert/update trực tiếp qua object này)
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("userId")
     @JoinColumn(name = "user_id")

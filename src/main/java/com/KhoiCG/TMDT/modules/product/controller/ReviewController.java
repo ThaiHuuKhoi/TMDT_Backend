@@ -19,20 +19,17 @@ public class ReviewController {
 
     private final ReviewService reviewService;
 
-    // GET: Lấy danh sách review
     @GetMapping("/{productId}")
     public ResponseEntity<List<ReviewResponseDto>> getProductReviews(@PathVariable Long productId) {
         return ResponseEntity.ok(reviewService.getReviewsByProduct(productId));
     }
 
-    // POST: Viết review (Yêu cầu đăng nhập)
     @PostMapping
     public ResponseEntity<Review> createReview(@RequestBody ReviewRequest request) {
         if (request.getRating() < 1 || request.getRating() > 5) {
             return ResponseEntity.badRequest().build();
         }
 
-        // Lấy thông tin user đang đăng nhập từ Spring Security
         UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userDetails.getUser().getId();
 

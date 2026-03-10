@@ -34,18 +34,15 @@ public class SessionController {
             UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             Long userId = userDetails.getUser().getId();
 
-            // 1. Sinh mã giao dịch duy nhất
             String txnRef = "STRIPE_" + UUID.randomUUID().toString().substring(0, 8);
 
-            // 2. Chốt đơn hàng và lấy số tiền (Lock data)
             Order pendingOrder = orderService.createPendingOrder(userId, txnRef, request.getCouponCode());
 
-            // 3. Gọi Stripe tạo session với số tiền đã chốt
             String clientSecret = stripeService.createCheckoutSession(
                     userId,
                     pendingOrder.getTotalAmount().longValue(),
                     "Thanh toán đơn hàng " + txnRef,
-                    txnRef // Truyền txnRef sang Stripe
+                    txnRef
             );
 
             return ResponseEntity.ok(Map.of("clientSecret", clientSecret));

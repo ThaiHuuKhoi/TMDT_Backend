@@ -50,7 +50,6 @@ public class WebhookController {
 
                 String stripeOriginalSessionId = sessionNode.path("id").asText();
 
-                // Lấy txnRef mà chúng ta đã gửi đi lúc nãy
                 String txnRef = sessionNode.path("client_reference_id").asText();
 
                 if (txnRef == null || txnRef.isEmpty() || "null".equals(txnRef)) {
@@ -64,14 +63,11 @@ public class WebhookController {
                 log.info("Payment Succeeded - TxnRef: {}", txnRef);
 
                 PaymentSuccessEvent successEvent = new PaymentSuccessEvent();
-                // Vì OrderService đang mong đợi sessionId (để tìm kiếm), ta nhét txnRef vào đây
                 successEvent.setSessionId(txnRef);
-                // Cập nhật các trường còn lại (Bạn có thể bỏ trường userId đi nếu muốn vì Kafka event chỉ cần sessionId/txnRef để confirm đơn)
                 successEvent.setEmail(email);
                 successEvent.setAmount(amountTotal);
                 successEvent.setStatus("success");
 
-                // Đẩy thông báo lên Kafka -> OrderListener sẽ bắt lấy txnRef và gọi confirmOrderPayment(txnRef)
                 kafkaTemplate.send("payment.successful", successEvent);
 
             } catch (Exception e) {

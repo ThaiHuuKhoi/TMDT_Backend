@@ -20,7 +20,6 @@ public class WishListId implements Serializable {
     @Column(name = "product_id")
     private Long productId;
 
-    // Bắt buộc phải có equals và hashCode cho Composite Key
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

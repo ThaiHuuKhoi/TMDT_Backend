@@ -34,9 +34,6 @@ public class OrderController {
         }
     }
 
-    // Đã XÓA: API /create-checkout-session ở đây.
-    // Frontend từ nay sẽ gọi POST /api/sessions/create-checkout-session (bên module payment) để lấy link Stripe nhé!
-
     @GetMapping("/user-orders")
     public ResponseEntity<List<OrderResponse>> getUserOrders() {
         UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();

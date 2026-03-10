@@ -1,4 +1,3 @@
-// File: src/main/java/com/KhoiCG/TMDT/modules/user/controller/UserController.java
 package com.KhoiCG.TMDT.modules.user.controller;
 
 import com.KhoiCG.TMDT.modules.user.dto.UserResponse;

@@ -38,23 +38,20 @@ public class ProductController {
     @PostMapping
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<Product> createProduct(@RequestBody @Valid CreateProductRequest request) {
-        // Gọi service với DTO mới
         return ResponseEntity.status(HttpStatus.CREATED).body(productService.createProduct(request));
     }
 
     @DeleteMapping("/{id}")
-    // @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<?> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
         return ResponseEntity.ok().build();
     }
 
-    // ... các code cũ ...
 
     @GetMapping("/{id}/related")
     public ResponseEntity<List<ProductResponse>> getRelatedProducts(@PathVariable Long id) {
         return ResponseEntity.ok(productService.getRelatedProducts(id));
     }
 
-    // Update method tương tự...
 }

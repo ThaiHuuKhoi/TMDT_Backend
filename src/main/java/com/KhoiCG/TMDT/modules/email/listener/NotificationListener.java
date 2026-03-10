@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class NotificationListener {
 
-    private final NotificationService notificationService; // Dùng Interface (DIP)
+    private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "user.created", groupId = "email-service")
@@ -22,10 +22,10 @@ public class NotificationListener {
         try {
             UserCreatedEvent event = objectMapper.readValue(rawJson, UserCreatedEvent.class);
             if (event.getEmail() != null) {
-                notificationService.sendWelcomeEmail(event); // Gọi qua Interface
+                notificationService.sendWelcomeEmail(event);
             }
         } catch (Exception e) {
-            log.error("❌ Lỗi xử lý User Event: ", e);
+            log.error("Lỗi xử lý User Event: ", e);
         }
     }
 
@@ -37,7 +37,7 @@ public class NotificationListener {
                 notificationService.sendOrderEmail(event); // Gọi qua Interface
             }
         } catch (Exception e) {
-            log.error("❌ Lỗi xử lý Order Event: ", e);
+            log.error("Lỗi xử lý Order Event: ", e);
         }
     }
 }

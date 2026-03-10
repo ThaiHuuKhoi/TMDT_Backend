@@ -30,13 +30,11 @@ public class WishListService {
     public String toggleWishlist(Long userId, Long productId) {
         WishListId id = new WishListId(userId, productId);
 
-        // Nếu đã có trong Wishlist -> Xóa
         if (wishListRepository.existsById(id)) {
             wishListRepository.deleteById(id);
             return "Đã xóa khỏi danh sách yêu thích";
         }
 
-        // Nếu chưa có -> Thêm mới
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         Product product = productRepository.findById(productId)

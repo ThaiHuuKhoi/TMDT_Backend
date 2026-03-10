@@ -22,7 +22,6 @@ public class Cart {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 1 User chỉ có 1 Cart duy nhất
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", unique = true, nullable = false)
     private User user;

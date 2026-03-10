@@ -78,7 +78,6 @@ public class OrderService {
         }
     }
 
-    // --- 2. Lấy danh sách Order ---
     public List<OrderResponse> getUserOrders(Long userId) {
         return orderRepository.findByUserId(userId)
                 .stream()
@@ -102,7 +101,6 @@ public class OrderService {
         return orderMapper.toOrderResponse(order);
     }
 
-    // --- 3. Biểu đồ thống kê ---
     public List<OrderChartResponse> getOrderChart() {
         List<Object[]> rawStats = orderRepository.getRawMonthlyStats(LocalDateTime.now().minusMonths(6));
         List<OrderChartResponse> responseList = new ArrayList<>();
@@ -122,7 +120,6 @@ public class OrderService {
         return responseList;
     }
 
-    // --- 4. Cập nhật trạng thái (Dành cho Admin) ---
     @Transactional
     public Order updateOrderStatus(Long id, String newStatusStr) {
         Order order = orderRepository.findById(id)
@@ -141,7 +138,6 @@ public class OrderService {
         return orderRepository.save(order);
     }
 
-    // 1. Tạo đơn hàng PENDING (Snapshot giỏ hàng) trước khi thanh toán
     @Transactional
     public Order createPendingOrder(Long userId, String stripeSessionId, String couponCode) {
         User user = userRepo.findById(userId)
@@ -161,11 +157,9 @@ public class OrderService {
                 .stripeSessionId(stripeSessionId)
                 .build();
 
-        // Copy từ CartItem sang OrderItem (Khóa chết giá trị)
         for (CartItem cartItem : cart.getItems()) {
             ProductVariant variant = cartItem.getVariant();
 
-            // Chỉ check xem kho còn không, CHƯA TRỪ KHO vội
             if (variant.getStockQuantity() < cartItem.getQuantity()) {
                 throw new RuntimeException("Sản phẩm '" + variant.getProduct().getName() + "' không đủ số lượng!");
             }
@@ -184,7 +178,6 @@ public class OrderService {
             order.addOrderItem(orderItem);
         }
 
-        // --- BỔ SUNG LOGIC XỬ LÝ MÃ GIẢM GIÁ Ở ĐÂY ---
         if (couponCode != null && !couponCode.isBlank()) {
             CouponCheckRequest checkReq = new CouponCheckRequest();
             checkReq.setCode(couponCode);
@@ -211,17 +204,14 @@ public class OrderService {
     @Transactional
     public Order confirmOrderPayment(String sessionId, Payment.PaymentMethod paymentMethod) {
 
-        //  1. IDEMPOTENCY CHECK: Kẻ gác cổng
         if (paymentRepository.findByTransactionId(sessionId).isPresent()) {
             log.info("Giao dịch {} đã được xử lý trước đó. Bỏ qua để chống trùng lặp.", sessionId);
             return orderRepository.findByStripeSessionId(sessionId).orElse(null);
         }
 
-        // 2. Tìm đơn hàng PENDING đã đóng băng ở bước trước
         Order order = orderRepository.findByStripeSessionId(sessionId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch này!"));
 
-        // Double check trạng thái Order (Phòng hờ race-condition mili-giây)
         if (order.getStatus() == OrderStatus.COMPLETED) {
             return order;
         }
@@ -235,7 +225,6 @@ public class OrderService {
                 couponRepository.save(coupon);
             }
 
-            // 4. Cập nhật trạng thái Order
             order.setStatus(OrderStatus.COMPLETED);
             order.addStatusHistory(OrderStatusHistory.builder()
                     .status(OrderStatus.COMPLETED)
@@ -244,8 +233,6 @@ public class OrderService {
 
             Order savedOrder = orderRepository.save(order);
 
-            //  5. LƯU VẾT THANH TOÁN (Khóa giao dịch)
-            // Lần sau webhook/frontend có gọi lại sessionId này thì sẽ bị chặn ở bước 1
             Payment payment = Payment.builder()
                     .order(savedOrder)
                     .paymentMethod(paymentMethod)
@@ -255,7 +242,6 @@ public class OrderService {
                     .build();
             paymentRepository.save(payment);
 
-            // 6. Phát sự kiện (Xóa giỏ hàng, gửi Email, v.v...)
             eventPublisher.publishEvent(new OrderCompletedEvent(savedOrder));
 
             return savedOrder;

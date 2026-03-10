@@ -19,7 +19,6 @@ public class ProductRatingListener {
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
 
-    // Lắng nghe sự kiện ReviewCreatedEvent
     @EventListener
     @Transactional
     public void handleReviewCreatedEvent(ReviewCreatedEvent event) {

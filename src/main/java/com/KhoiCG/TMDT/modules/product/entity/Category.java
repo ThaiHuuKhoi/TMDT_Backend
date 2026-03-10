@@ -21,7 +21,4 @@ public class Category {
 
     private String image;
 
-    // Quan hệ 1-N với Product (nếu cần mapping ngược lại)
-    // @OneToMany(mappedBy = "category")
-    // private List<Product> products;
 }

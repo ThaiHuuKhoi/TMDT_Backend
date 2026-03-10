@@ -66,10 +66,9 @@ public class Order {
 
     public void addOrderItem(OrderItem item) {
         items.add(item);
-        item.setOrder(this); // Thiết lập khóa ngoại order_id cho OrderItem
+        item.setOrder(this);
     }
 
-    // Tương tự cho lịch sử trạng thái
     public void addStatusHistory(OrderStatusHistory history) {
         statusHistories.add(history);
         history.setOrder(this);

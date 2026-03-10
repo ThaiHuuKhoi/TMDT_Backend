@@ -20,17 +20,15 @@ public class BannerService {
 
     private final BannerRepository bannerRepository;
 
-    // --- DÀNH CHO HOMEPAGE (CÓ CACHE) ---
     @Cacheable(value = "banners", key = "'active'")
     public List<BannerResponse> getActiveBanners() {
-        log.info("🚀 [CACHE MISS] - Đang query Database để lấy danh sách Banner quảng cáo...");
+        log.info("[CACHE MISS] - Đang query Database để lấy danh sách Banner quảng cáo...");
         return bannerRepository.findByIsActiveTrueOrderByDisplayOrderAsc()
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // --- DÀNH CHO ADMIN DASHBOARD (KHÔNG CACHE) ---
     public List<BannerResponse> getAllBanners() {
         return bannerRepository.findAll()
                 .stream()
@@ -41,7 +39,7 @@ public class BannerService {
     @CacheEvict(value = "banners", allEntries = true)
     @Transactional
     public BannerResponse saveBanner(BannerRequest request) {
-        log.info("🧹 [CACHE EVICT] - Đã xóa cache Banners vì có quảng cáo mới được lưu.");
+        log.info("[CACHE EVICT] - Đã xóa cache Banners vì có quảng cáo mới được lưu.");
         Banner banner = Banner.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -50,7 +48,6 @@ public class BannerService {
                 .targetId(request.getTargetId())
                 .linkUrl(request.getLinkUrl())
                 .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
-                // Lấy trạng thái từ Request (Frontend truyền xuống)
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
                 .build();
 
@@ -63,11 +60,10 @@ public class BannerService {
         if (!bannerRepository.existsById(id)) {
             throw new RuntimeException("Banner không tồn tại!");
         }
-        log.info("🧹 [CACHE EVICT] - Đã xóa cache Banners do xóa quảng cáo ID: {}", id);
+        log.info("[CACHE EVICT] - Đã xóa cache Banners do xóa quảng cáo ID: {}", id);
         bannerRepository.deleteById(id);
     }
 
-    // Hàm chuyển đổi Entity -> DTO
     private BannerResponse mapToResponse(Banner banner) {
         String finalUrl = "";
         if (banner.getTargetType() != null) {
@@ -83,9 +79,8 @@ public class BannerService {
                 .title(banner.getTitle())
                 .description(banner.getDescription())
                 .imageUrl(banner.getImageUrl())
-                .targetUrl(finalUrl) // Dành cho Slider ở Homepage
+                .targetUrl(finalUrl)
                 .displayOrder(banner.getDisplayOrder())
-                // Trả về thêm dữ liệu cho Bảng quản trị Admin
                 .targetType(banner.getTargetType())
                 .targetId(banner.getTargetId())
                 .linkUrl(banner.getLinkUrl())

@@ -14,10 +14,8 @@ public class WishListController {
 
     private final WishListService wishListService;
 
-    // POST: Thêm hoặc Xóa sản phẩm khỏi danh sách yêu thích (Toggle)
     @PostMapping("/{productId}")
     public ResponseEntity<String> toggleWishlist(@PathVariable Long productId) {
-        // Lấy thông tin user từ context bảo mật (JWT Token)
         UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userDetails.getUser().getId();
 
@@ -25,7 +23,6 @@ public class WishListController {
         return ResponseEntity.ok(resultMessage);
     }
 
-    // GET: Lấy danh sách sản phẩm yêu thích của user hiện tại (có phân trang)
     @GetMapping
     public ResponseEntity<?> getMyWishlist(
             @RequestParam(defaultValue = "0") int page,

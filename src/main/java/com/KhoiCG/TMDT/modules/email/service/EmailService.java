@@ -38,14 +38,14 @@ public class EmailService implements NotificationService {
         String htmlContent = templateEngine.process("order-email", context);
 
         sendMimeMail(event.getEmail(), "Xác nhận đơn hàng thành công - ShopKCG", htmlContent);
-        log.info("📦 Order Email sent to: {}", event.getEmail());
+        log.info("Order Email sent to: {}", event.getEmail());
     }
 
     @Override
     public void sendWelcomeEmail(UserCreatedEvent event) {
         String content = "Xin chào " + event.getUsername() + ", tài khoản của bạn đã tạo thành công!";
         sendMimeMail(event.getEmail(), "Welcome to ShopKCG", content);
-        log.info("📩 Welcome Email sent to: {}", event.getEmail());
+        log.info("Welcome Email sent to: {}", event.getEmail());
     }
 
     private void sendMimeMail(String to, String subject, String content) {
@@ -58,15 +58,13 @@ public class EmailService implements NotificationService {
             helper.setText(content, true);
             mailSender.send(message);
         } catch (MessagingException e) {
-            log.error("❌ Failed to send email to {}: {}", to, e.getMessage());
+            log.error("Failed to send email to {}: {}", to, e.getMessage());
         }
     }
 
     private String formatCurrency(Long amount) {
-        // VNĐ không chia 100 như tiền xu (cents) của USD
         double displayAmount = amount != null ? amount : 0.0;
 
-        // Sử dụng Locale của Việt Nam
         NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
         return format.format(displayAmount);
     }

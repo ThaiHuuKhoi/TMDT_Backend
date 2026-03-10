@@ -25,7 +25,6 @@ public class VNPayController {
     private final VNPayService vnPayService;
     private final OrderService orderService;
 
-    // Thay đổi @RequestBody để nhận DTO có chứa couponCode
     @PostMapping("/create-payment")
     public ResponseEntity<?> createPayment(@RequestBody CreateSessionRequest request, HttpServletRequest httpRequest) {
         UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -46,7 +45,6 @@ public class VNPayController {
         return ResponseEntity.ok(Map.of("paymentUrl", paymentUrl));
     }
 
-    // 2. API Nhận IPN (Webhook) từ hệ thống VNPay gọi ngầm về Server
     @GetMapping("/ipn")
     public ResponseEntity<?> vnpayIPN(@RequestParam Map<String, String> params) {
         log.info("Nhận IPN từ VNPay: {}", params);
@@ -56,16 +54,11 @@ public class VNPayController {
             String txnRef = params.get("vnp_TxnRef");
 
             if ("00".equals(vnp_ResponseCode)) {
-                // Gọi hàm Idempotency đã viết trước đó để chốt đơn & trừ kho
-                // (Vì hàm confirmOrderPayment nhận sessionId, ở đây ta truyền txnRef)
                 orderService.confirmOrderPayment(txnRef, Payment.PaymentMethod.VNPAY);
                 log.info("Xử lý IPN thành công cho giao dịch: {}", txnRef);
 
-                // Trả về định dạng mà VNPay yêu cầu để xác nhận đã nhận IPN
                 return ResponseEntity.ok(Map.of("RspCode", "00", "Message", "Confirm Success"));
             } else {
-                // Giao dịch lỗi/hủy
-                // Có thể viết thêm logic đổi status order thành CANCELLED
                 return ResponseEntity.ok(Map.of("RspCode", "00", "Message", "Confirm Success (Failed Transaction)"));
             }
         }

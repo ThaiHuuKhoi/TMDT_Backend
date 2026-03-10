@@ -49,7 +49,6 @@ public class AuthService {
 
         User savedUser = userRepo.save(user);
 
-        // Việc gửi mail, tạo thông báo... sẽ do các Listener khác tự lo
         eventPublisher.publishEvent(new UserRegisteredEvent(savedUser));
 
         String accessToken = jwtService.generateToken(savedUser.getEmail());

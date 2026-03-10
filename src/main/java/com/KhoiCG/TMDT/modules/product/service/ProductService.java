@@ -41,7 +41,6 @@ public class ProductService {
 
     @Transactional
     public Product createProduct(CreateProductRequest req) {
-        // ... (Logic của bạn giữ nguyên hoàn toàn)
         Category category = categoryRepository.findBySlug(req.getCategorySlug())
                 .orElseThrow(() -> new RuntimeException("Category không tồn tại: " + req.getCategorySlug()));
 
@@ -107,7 +106,6 @@ public class ProductService {
     }
 
     public List<ProductResponse> getProducts(String categorySlug, String search, String sortStr, int limit) {
-        // ... (Logic giữ nguyên)
         Specification<Product> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (StringUtils.hasText(categorySlug)) {
@@ -128,18 +126,16 @@ public class ProductService {
                 .collect(Collectors.toList());
     }
 
-    // --- XÓA SẢN PHẨM: BẮT BUỘC PHẢI XÓA CACHE ---
     @CacheEvict(value = "product_details", key = "#id")
     public void deleteProduct(Long id) {
         if (productRepository.existsById(id)) {
             productRepository.deleteById(id);
-            log.info("🧹 Đã xóa cache của sản phẩm ID: {}", id);
+            log.info("Đã xóa cache của sản phẩm ID: {}", id);
         } else {
             throw new RuntimeException("Product not found");
         }
     }
 
-    // --- LẤY CHI TIẾT SẢN PHẨM: ÁP DỤNG CACHE TẠI ĐÂY ---
     @Cacheable(value = "product_details", key = "#id")
     public ProductResponse getProduct(Long id) {
         log.info("🚀 [CACHE MISS] - Phải query Database để lấy sản phẩm ID: {}", id);
@@ -148,7 +144,6 @@ public class ProductService {
         return productMapper.toProductResponse(product);
     }
 
-    // --- LẤY SẢN PHẨM LIÊN QUAN: ÁP DỤNG CACHE ---
     @Cacheable(value = "product_details", key = "'related_' + #currentProductId")
     public List<ProductResponse> getRelatedProducts(Long currentProductId) {
         log.info("🚀 [CACHE MISS] - Phải query Database để lấy sản phẩm liên quan cho ID: {}", currentProductId);
