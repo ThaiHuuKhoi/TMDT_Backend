@@ -1,10 +1,12 @@
 package com.KhoiCG.TMDT.common.config;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -33,10 +35,16 @@ public class SecurityConfig {
 	private JwtFilter jwtFilter;
 
 	@Autowired
+	private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
+	@Autowired
 	private CustomOAuth2SuccessHandler customOAuth2SuccessHandler;
 
 	@Autowired
 	private HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
+
+	@Value("${application.security.cors.allowed-origins:http://localhost:3002,http://localhost:3003}")
+	private String allowedOrigins;
 
 	@Bean
 	public AuthenticationProvider authProvider() {
@@ -61,6 +69,7 @@ public class SecurityConfig {
 				.sessionManagement(session ->
 						session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
 				)
+				.exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(
 								"/api/auth/**",
@@ -70,10 +79,12 @@ public class SecurityConfig {
 								"/api/sessions/**",
 								"/api/orders/**",
 								"/api/webhook",
+								"/api/webhooks/**",
 								"/api/error",
 								"/api/banners/**",
 								"/api/reviews/**",
-								"/api/categories/**"
+								"/api/categories/**",
+								"/api/chatbot/**"
 						).permitAll()
 						.anyRequest()
 //						.permitAll()
@@ -107,7 +118,11 @@ public class SecurityConfig {
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration config = new CorsConfiguration();
-		config.setAllowedOrigins(List.of("http://localhost:3002","http://localhost:3003"));
+		List<String> origins = Arrays.stream(allowedOrigins.split(","))
+				.map(String::trim)
+				.filter(s -> !s.isBlank())
+				.toList();
+		config.setAllowedOrigins(origins);
 		config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
 		config.setAllowedHeaders(List.of("*"));
 		config.setAllowCredentials(true);

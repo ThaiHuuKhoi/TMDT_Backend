@@ -243,3 +243,20 @@ CREATE TABLE refresh_tokens (
                                 revoked BIT(1) DEFAULT b'0',
                                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- 1. Thêm cột vào bảng orders để lưu mã vận đơn và bên giao hàng
+ALTER TABLE orders
+    ADD COLUMN shipping_provider VARCHAR(50) NULL COMMENT 'VD: GHN, GHTK, VIETTEL_POST',
+ADD COLUMN tracking_code VARCHAR(100) NULL COMMENT 'Mã vận đơn thực tế từ đối tác',
+ADD COLUMN expected_delivery_date DATETIME(6) NULL COMMENT 'Ngày dự kiến nhận hàng';
+
+-- 2. Tạo bảng mới: shipping_logs (Để hứng Webhook, vẽ timeline bên Frontend)
+CREATE TABLE shipping_logs (
+                               id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                               order_id BIGINT NOT NULL,
+                               status VARCHAR(100) NOT NULL COMMENT 'Trạng thái từ đối tác (VD: ready_to_pick, delivering)',
+                               message TEXT NOT NULL COMMENT 'Mô tả chi tiết (VD: Shipper đang đi lấy hàng)',
+                               reported_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) COMMENT 'Thời gian thực tế xảy ra sự kiện',
+                               created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+                               FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);

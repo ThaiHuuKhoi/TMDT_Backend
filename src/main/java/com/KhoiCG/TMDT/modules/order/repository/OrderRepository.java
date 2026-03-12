@@ -30,4 +30,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Object[]> getRawMonthlyStats(@Param("startDate") LocalDateTime startDate);
 
     Optional<Order> findByStripeSessionId(String stripeSessionId);
+
+    Optional<Order> findByTrackingCode(String trackingCode);
 }
