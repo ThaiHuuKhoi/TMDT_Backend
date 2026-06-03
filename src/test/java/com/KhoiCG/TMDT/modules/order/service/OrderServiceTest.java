@@ -28,7 +28,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.kafka.core.KafkaTemplate;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -45,7 +44,6 @@ class OrderServiceTest {
 
     // --- MOCK TOÀN BỘ DEPENDENCIES ---
     @Mock private OrderRepository orderRepository;
-    @Mock private KafkaTemplate<String, Object> kafkaTemplate;
     @Mock private UserRepo userRepo;
     @Mock private CartService cartService;
     @Mock private OrderMapper orderMapper;
