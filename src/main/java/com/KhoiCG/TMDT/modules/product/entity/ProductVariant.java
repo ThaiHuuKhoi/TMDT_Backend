@@ -35,6 +35,10 @@ public class ProductVariant {
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal price;
 
+    /** Giá niêm yết / gốc (hiển thị gạch ngang). Null = không hiển thị gốc. */
+    @Column(precision = 15, scale = 2)
+    private BigDecimal originalPrice;
+
     @Column(nullable = false)
     @Builder.Default
     private Integer stockQuantity = 0;

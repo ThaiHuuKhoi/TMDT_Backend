@@ -2,8 +2,10 @@ package com.KhoiCG.TMDT.modules.order.controller;
 
 import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
 import com.KhoiCG.TMDT.modules.order.dto.CartRequest;
-import com.KhoiCG.TMDT.modules.order.entity.Cart;
+import com.KhoiCG.TMDT.modules.order.dto.CartSummaryResponse;
+import com.KhoiCG.TMDT.modules.order.mapper.CartMapper;
 import com.KhoiCG.TMDT.modules.order.service.CartService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class CartController {
 
     private final CartService cartService;
+    private final CartMapper cartMapper;
 
     private Long getCurrentUserId() {
         UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -22,33 +25,27 @@ public class CartController {
     }
 
     @GetMapping
-    public ResponseEntity<Cart> getMyCart() {
-        return ResponseEntity.ok(cartService.getOrCreateCart(getCurrentUserId()));
+    public ResponseEntity<CartSummaryResponse> getMyCart() {
+        return ResponseEntity.ok(cartMapper.toCartSummary(cartService.getOrCreateCart(getCurrentUserId())));
     }
 
     @PostMapping("/items")
-    public ResponseEntity<?> addToCart(@RequestBody CartRequest request) {
-        try {
-            Cart cart = cartService.addToCart(getCurrentUserId(), request.getVariantId(), request.getQuantity());
-            return ResponseEntity.ok(cart);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<CartSummaryResponse> addToCart(@Valid @RequestBody CartRequest request) {
+        return ResponseEntity.ok(cartMapper.toCartSummary(
+                cartService.addToCart(getCurrentUserId(), request.getVariantId(), request.getQuantity())
+        ));
     }
 
     @PutMapping("/items")
-    public ResponseEntity<?> updateQuantity(@RequestBody CartRequest request) {
-        try {
-            Cart cart = cartService.updateItemQuantity(getCurrentUserId(), request.getVariantId(), request.getQuantity());
-            return ResponseEntity.ok(cart);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<CartSummaryResponse> updateQuantity(@Valid @RequestBody CartRequest request) {
+        return ResponseEntity.ok(cartMapper.toCartSummary(
+                cartService.updateItemQuantity(getCurrentUserId(), request.getVariantId(), request.getQuantity())
+        ));
     }
 
     @DeleteMapping("/items/{variantId}")
-    public ResponseEntity<Cart> removeItem(@PathVariable Long variantId) {
-        return ResponseEntity.ok(cartService.removeItem(getCurrentUserId(), variantId));
+    public ResponseEntity<CartSummaryResponse> removeItem(@PathVariable Long variantId) {
+        return ResponseEntity.ok(cartMapper.toCartSummary(cartService.removeItem(getCurrentUserId(), variantId)));
     }
 
     @DeleteMapping

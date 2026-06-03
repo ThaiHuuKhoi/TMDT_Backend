@@ -47,10 +47,10 @@ public class RuleBasedChatAdvisor implements ChatAdvisor {
                     """.trim();
         }
 
-        if (containsAny(msg, "thanh toán", "vnpay", "momo", "stripe", "cod")) {
+        if (containsAny(msg, "thanh toán", "vnpay", "momo", "cod")) {
             return """
-                    Về thanh toán, hệ thống hỗ trợ nhiều phương thức (tuỳ cấu hình): COD / VNPay / Stripe.
-                    Bạn đang gặp lỗi ở bước nào (tạo session, redirect, hay webhook xác nhận) để mình chỉ đúng chỗ?
+                    Về thanh toán, hệ thống hỗ trợ các phương thức như COD / VNPay (tuỳ cấu hình thực tế).
+                    Bạn đang gặp lỗi ở bước nào (tạo thanh toán, redirect, hay xác nhận IPN) để mình chỉ đúng chỗ?
                     """.trim();
         }
 

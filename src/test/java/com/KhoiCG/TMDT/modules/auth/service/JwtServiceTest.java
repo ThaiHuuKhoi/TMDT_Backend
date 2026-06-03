@@ -108,15 +108,12 @@ class JwtServiceTest {
     }
 
     @Test
-    @DisplayName("Bảo mật: Báo lỗi MalformedJwtException khi cấu trúc Token bị phá hỏng")
+    @DisplayName("Bảo mật: Báo lỗi MalformedJwtException khi chuỗi không phải JWT hợp lệ")
     void validateToken_Fail_WhenTokenIsMalformed() {
-        String email = "user@tmdt.com";
-        String token = jwtService.generateToken(email);
+        // Thêm ký tự vào cuối token vẫn là 3 phần Base64 → JJWT 0.13+ có thể báo SignatureException.
+        // Chuỗi không đúng cấu trúc compact JWT → MalformedJwtException.
+        String malformedToken = "not-a-compact-jwt";
 
-        // Khách hàng copy thiếu token, hoặc hacker cố tình sửa thêm chữ 'A' vào đuôi
-        String malformedToken = token + "A";
-
-        // Hệ thống sẽ bắt lỗi chuỗi không đúng chuẩn JWT ngay lập tức
         assertThrows(MalformedJwtException.class, () -> {
             jwtService.extractUserName(malformedToken);
         });

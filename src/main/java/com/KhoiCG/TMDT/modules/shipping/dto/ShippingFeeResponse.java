@@ -9,5 +9,7 @@ public class ShippingFeeResponse {
     private String providerCode;
     private double fee;
     private String currency;
+    /** FLAT | CARRIER — nguồn tính phí. */
+    private String source;
 }
 

@@ -3,6 +3,7 @@ package com.KhoiCG.TMDT.modules.auth.entity;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Getter
@@ -31,8 +32,9 @@ public class PasswordResetToken {
     @Builder.Default
     private Boolean isUsed = false;
 
+    @CreationTimestamp
     @Column(updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt;
 
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(this.expiryDate);

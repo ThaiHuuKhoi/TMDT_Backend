@@ -1,8 +1,10 @@
 package com.KhoiCG.TMDT.modules.auth.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.auth.entity.PasswordResetToken;
 import com.KhoiCG.TMDT.modules.auth.event.PasswordResetRequestedEvent;
 import com.KhoiCG.TMDT.modules.auth.repository.PasswordResetTokenRepository;
+import com.KhoiCG.TMDT.modules.auth.util.RefreshTokenHasher;
 import com.KhoiCG.TMDT.modules.user.entity.AuthProvider;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.entity.UserProvider;
@@ -59,7 +61,7 @@ class PasswordResetServiceTest {
 
         validToken = PasswordResetToken.builder()
                 .id(100L)
-                .token("valid-uuid-token")
+                .token(RefreshTokenHasher.sha256Hex("valid-uuid-token"))
                 .user(mockUser)
                 .expiryDate(LocalDateTime.now().plusMinutes(30))
                 .isUsed(false)
@@ -93,7 +95,8 @@ class PasswordResetServiceTest {
         ArgumentCaptor<PasswordResetRequestedEvent> eventCaptor = ArgumentCaptor.forClass(PasswordResetRequestedEvent.class);
         verify(eventPublisher, times(1)).publishEvent(eventCaptor.capture());
         assertEquals("test@gmail.com", eventCaptor.getValue().getEmail());
-        assertEquals(savedToken.getToken(), eventCaptor.getValue().getToken());
+        assertNotEquals(eventCaptor.getValue().getToken(), savedToken.getToken());
+        assertEquals(RefreshTokenHasher.sha256Hex(eventCaptor.getValue().getToken()), savedToken.getToken());
     }
 
     @Test
@@ -101,10 +104,11 @@ class PasswordResetServiceTest {
     void processForgotPassword_Fail_EmailNotFound() {
         when(userRepo.findByEmail("wrong@gmail.com")).thenReturn(Optional.empty());
 
-        Exception ex = assertThrows(RuntimeException.class, () ->
+        ApiException ex = assertThrows(ApiException.class, () ->
                 passwordResetService.processForgotPassword("wrong@gmail.com")
         );
 
+        assertEquals("EMAIL_NOT_FOUND", ex.getCode());
         assertEquals("Email không tồn tại trong hệ thống", ex.getMessage());
         verify(tokenRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
@@ -117,7 +121,7 @@ class PasswordResetServiceTest {
     @Test
     @DisplayName("Đặt lại mật khẩu: Thành công - Đổi mật khẩu, mã hóa và khóa Token")
     void resetPassword_Success() {
-        when(tokenRepository.findByToken("valid-uuid-token")).thenReturn(Optional.of(validToken));
+        when(tokenRepository.findByToken(RefreshTokenHasher.sha256Hex("valid-uuid-token"))).thenReturn(Optional.of(validToken));
         when(passwordEncoder.encode("newPassword123")).thenReturn("newHashedPassword");
 
         passwordResetService.resetPassword("valid-uuid-token", "newPassword123");
@@ -134,12 +138,13 @@ class PasswordResetServiceTest {
     @Test
     @DisplayName("Đặt lại mật khẩu: Báo lỗi khi Token không tồn tại")
     void resetPassword_Fail_TokenNotFound() {
-        when(tokenRepository.findByToken("fake-token")).thenReturn(Optional.empty());
+        when(tokenRepository.findByToken(RefreshTokenHasher.sha256Hex("fake-token"))).thenReturn(Optional.empty());
 
-        Exception ex = assertThrows(RuntimeException.class, () ->
+        ApiException ex = assertThrows(ApiException.class, () ->
                 passwordResetService.resetPassword("fake-token", "newPass")
         );
 
+        assertEquals("INVALID_RESET_TOKEN", ex.getCode());
         assertEquals("Token không hợp lệ hoặc không tồn tại", ex.getMessage());
     }
 
@@ -147,12 +152,13 @@ class PasswordResetServiceTest {
     @DisplayName("Đặt lại mật khẩu: Báo lỗi khi Token đã hết hạn (> 30 phút)")
     void resetPassword_Fail_TokenExpired() {
         validToken.setExpiryDate(LocalDateTime.now().minusMinutes(1)); // Cố tình set hết hạn
-        when(tokenRepository.findByToken("valid-uuid-token")).thenReturn(Optional.of(validToken));
+        when(tokenRepository.findByToken(RefreshTokenHasher.sha256Hex("valid-uuid-token"))).thenReturn(Optional.of(validToken));
 
-        Exception ex = assertThrows(RuntimeException.class, () ->
+        ApiException ex = assertThrows(ApiException.class, () ->
                 passwordResetService.resetPassword("valid-uuid-token", "newPass")
         );
 
+        assertEquals("EXPIRED_RESET_TOKEN", ex.getCode());
         assertEquals("Token đã hết hạn. Vui lòng yêu cầu lại.", ex.getMessage());
         verify(userRepo, never()).save(any());
     }
@@ -161,12 +167,13 @@ class PasswordResetServiceTest {
     @DisplayName("Đặt lại mật khẩu: Báo lỗi khi Token đã bị sử dụng trước đó")
     void resetPassword_Fail_TokenAlreadyUsed() {
         validToken.setIsUsed(true); // Cố tình set đã sử dụng
-        when(tokenRepository.findByToken("valid-uuid-token")).thenReturn(Optional.of(validToken));
+        when(tokenRepository.findByToken(RefreshTokenHasher.sha256Hex("valid-uuid-token"))).thenReturn(Optional.of(validToken));
 
-        Exception ex = assertThrows(RuntimeException.class, () ->
+        ApiException ex = assertThrows(ApiException.class, () ->
                 passwordResetService.resetPassword("valid-uuid-token", "newPass")
         );
 
+        assertEquals("USED_RESET_TOKEN", ex.getCode());
         assertEquals("Token này đã được sử dụng.", ex.getMessage());
         verify(userRepo, never()).save(any());
     }
@@ -178,12 +185,13 @@ class PasswordResetServiceTest {
         mockUser.getProviders().clear();
         mockUser.getProviders().add(UserProvider.builder().provider(AuthProvider.GOOGLE).build());
 
-        when(tokenRepository.findByToken("valid-uuid-token")).thenReturn(Optional.of(validToken));
+        when(tokenRepository.findByToken(RefreshTokenHasher.sha256Hex("valid-uuid-token"))).thenReturn(Optional.of(validToken));
 
-        Exception ex = assertThrows(RuntimeException.class, () ->
+        ApiException ex = assertThrows(ApiException.class, () ->
                 passwordResetService.resetPassword("valid-uuid-token", "newPass")
         );
 
+        assertEquals("NON_LOCAL_ACCOUNT", ex.getCode());
         assertEquals("Tài khoản này không đăng nhập bằng email/mật khẩu thông thường", ex.getMessage());
         verify(userRepo, never()).save(any());
     }

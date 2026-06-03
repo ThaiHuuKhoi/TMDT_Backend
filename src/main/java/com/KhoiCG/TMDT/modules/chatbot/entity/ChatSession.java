@@ -4,6 +4,7 @@ import com.KhoiCG.TMDT.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -11,7 +12,10 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "chat_sessions")
+@Table(
+    name = "chat_sessions",
+    indexes = @Index(name = "idx_chat_sessions_user_created", columnList = "user_id, created_at")
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,6 +34,9 @@ public class ChatSession {
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("createdAt ASC")

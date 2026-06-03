@@ -1,10 +1,10 @@
 package com.KhoiCG.TMDT.modules.auth.listener;
 
-import com.KhoiCG.TMDT.common.event.UserCreatedEvent;
 import com.KhoiCG.TMDT.modules.auth.event.UserRegisteredEvent;
+import com.KhoiCG.TMDT.modules.email.dto.UserCreatedEvent;
+import com.KhoiCG.TMDT.modules.email.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -15,24 +15,19 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 public class AuthEventListener {
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final NotificationService notificationService;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleUserRegisteredEvent(UserRegisteredEvent event) {
         try {
-
-            UserCreatedEvent kafkaEvent = UserCreatedEvent.builder()
-                    .email(event.getUser().getEmail())
-                    .username(event.getUser().getName())
-                    .build();
-
-
-            kafkaTemplate.send("user.created", kafkaEvent);
-            log.info("Đã đẩy event tạo user lên Kafka: {}", event.getUser().getEmail());
-
+            UserCreatedEvent emailEvent = new UserCreatedEvent();
+            emailEvent.setEmail(event.getUser().getEmail());
+            emailEvent.setUsername(event.getUser().getName());
+            notificationService.sendWelcomeEmail(emailEvent);
+            log.info("Đã gửi welcome email cho: {}", event.getUser().getEmail());
         } catch (Exception e) {
-            log.error("Lỗi khi gửi Kafka event user.created: {}", e.getMessage());
+            log.error("Lỗi khi gửi welcome email: {}", e.getMessage());
         }
     }
 }

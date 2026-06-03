@@ -35,3 +35,7 @@ build/
 src/main/resources/application.properties
 
 cau_truc.sql
+
+.env
+
+.env.example

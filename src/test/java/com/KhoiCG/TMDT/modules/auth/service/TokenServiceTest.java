@@ -3,6 +3,8 @@ package com.KhoiCG.TMDT.modules.auth.service;
 import com.KhoiCG.TMDT.modules.auth.dto.AuthResponse;
 import com.KhoiCG.TMDT.modules.auth.entity.RefreshToken;
 import com.KhoiCG.TMDT.modules.auth.repository.RefreshTokenRepository;
+import com.KhoiCG.TMDT.modules.auth.util.RefreshTokenHasher;
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +20,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +48,7 @@ class TokenServiceTest {
         validRefreshToken = RefreshToken.builder()
                 .id(100L)
                 .user(mockUser)
-                .token("old-refresh-token")
+                .token(RefreshTokenHasher.sha256Hex("old-refresh-token"))
                 .expiryDate(LocalDateTime.now().plusDays(7))
                 .revoked(false)
                 .build();
@@ -67,7 +70,7 @@ class TokenServiceTest {
         verify(refreshTokenRepository, times(1)).save(tokenCaptor.capture());
 
         RefreshToken savedToken = tokenCaptor.getValue();
-        assertEquals("new-refresh-token", savedToken.getToken());
+        assertEquals(RefreshTokenHasher.sha256Hex("new-refresh-token"), savedToken.getToken());
         assertEquals(mockUser, savedToken.getUser());
         assertFalse(savedToken.isRevoked()); // Token mới lưu không được phép bị thu hồi
         assertNotNull(savedToken.getExpiryDate());
@@ -80,10 +83,11 @@ class TokenServiceTest {
     @Test
     @DisplayName("Xoay vòng Token: Thành công - Xóa token cũ, tạo và lưu token mới")
     void rotateRefreshToken_Success() {
-        when(refreshTokenRepository.findByToken("old-refresh-token")).thenReturn(Optional.of(validRefreshToken));
+        when(refreshTokenRepository.findByToken(RefreshTokenHasher.sha256Hex("old-refresh-token")))
+                .thenReturn(Optional.of(validRefreshToken));
 
         // Mock việc tạo token mới
-        when(jwtService.generateToken("test@tmdt.com")).thenReturn("new-access-token");
+        when(jwtService.generateToken("test@tmdt.com", "USER")).thenReturn("new-access-token");
         when(jwtService.generateRefreshToken("test@tmdt.com")).thenReturn("new-refresh-token");
         when(jwtService.getRefreshExpiration()).thenReturn(604800000L); // Mock cho hàm saveRefreshToken bên trong
 
@@ -104,13 +108,15 @@ class TokenServiceTest {
     @Test
     @DisplayName("Xoay vòng Token: Báo lỗi nếu token gửi lên không tồn tại trong DB")
     void rotateRefreshToken_Fail_NotFound() {
-        when(refreshTokenRepository.findByToken("fake-token")).thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByToken(RefreshTokenHasher.sha256Hex("fake-token")))
+                .thenReturn(Optional.empty());
 
-        Exception ex = assertThrows(RuntimeException.class, () -> {
+        ApiException ex = assertThrows(ApiException.class, () -> {
             tokenService.rotateRefreshToken("fake-token");
         });
 
-        assertEquals("Refresh token không tồn tại!", ex.getMessage());
+        assertEquals("INVALID_REFRESH_TOKEN", ex.getCode());
+        assertEquals("Refresh token không hợp lệ.", ex.getMessage());
         verify(refreshTokenRepository, never()).delete(any());
     }
 
@@ -120,48 +126,26 @@ class TokenServiceTest {
         // Cố tình làm cho token bị hết hạn
         validRefreshToken.setExpiryDate(LocalDateTime.now().minusDays(1));
 
-        when(refreshTokenRepository.findByToken("old-refresh-token")).thenReturn(Optional.of(validRefreshToken));
+        when(refreshTokenRepository.findByToken(RefreshTokenHasher.sha256Hex("old-refresh-token")))
+                .thenReturn(Optional.of(validRefreshToken));
 
-        Exception ex = assertThrows(RuntimeException.class, () -> {
+        ApiException ex = assertThrows(ApiException.class, () -> {
             tokenService.rotateRefreshToken("old-refresh-token");
         });
 
-        assertEquals("Token đã hết hạn hoặc bị vô hiệu", ex.getMessage());
+        assertEquals("EXPIRED_REFRESH_TOKEN", ex.getCode());
+        assertEquals("Refresh token đã hết hạn hoặc bị vô hiệu.", ex.getMessage());
 
         // Cực kỳ quan trọng: Hệ thống phát hiện token rác thì phải tự động dọn (xóa) nó đi luôn
         verify(refreshTokenRepository, times(1)).delete(validRefreshToken);
 
         // Không được phép sinh token mới
-        verify(jwtService, never()).generateToken(anyString());
+        verify(jwtService, never()).generateToken(anyString(), any());
     }
 
     // ==========================================
     // 3. TEST CÁC HÀM TIỆN ÍCH KHÁC
     // ==========================================
-
-    @Test
-    @DisplayName("Lấy Token mới nhất: Trả về string token nếu tìm thấy")
-    void getLatestRefreshToken_Success() {
-        when(refreshTokenRepository.findFirstByUserOrderByExpiryDateDesc(mockUser))
-                .thenReturn(Optional.of(validRefreshToken));
-
-        String result = tokenService.getLatestRefreshToken(mockUser);
-
-        assertEquals("old-refresh-token", result);
-    }
-
-    @Test
-    @DisplayName("Lấy Token mới nhất: Ném lỗi nếu User chưa từng có token nào")
-    void getLatestRefreshToken_Fail_NotFound() {
-        when(refreshTokenRepository.findFirstByUserOrderByExpiryDateDesc(mockUser))
-                .thenReturn(Optional.empty());
-
-        Exception ex = assertThrows(RuntimeException.class, () -> {
-            tokenService.getLatestRefreshToken(mockUser);
-        });
-
-        assertEquals("No refresh token found", ex.getMessage());
-    }
 
     @Test
     @DisplayName("Xóa Tokens theo User: Gọi đúng lệnh xóa của Repository (Dùng cho đăng xuất)")

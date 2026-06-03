@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.order.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.order.entity.Cart;
 import com.KhoiCG.TMDT.modules.order.entity.CartItem;
 import com.KhoiCG.TMDT.modules.order.repository.CartItemRepository;
@@ -10,6 +11,7 @@ import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.repository.UserRepo;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -27,7 +29,7 @@ public class CartService {
     public Cart getOrCreateCart(Long userId) {
         return cartRepository.findByUserId(userId).orElseGet(() -> {
             User user = userRepo.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy User"));
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Không tìm thấy User"));
             Cart newCart = Cart.builder().user(user).build();
             return cartRepository.save(newCart);
         });
@@ -38,10 +40,15 @@ public class CartService {
         Cart cart = getOrCreateCart(userId);
 
         ProductVariant variant = variantRepository.findById(variantId)
-                .orElseThrow(() -> new RuntimeException("Sản phẩm không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_VARIANT_NOT_FOUND", "Sản phẩm không tồn tại"));
+
+        if (!Boolean.TRUE.equals(variant.getIsActive())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VARIANT_INACTIVE", "Sản phẩm này hiện không còn bán.");
+        }
 
         if (variant.getStockQuantity() < quantity) {
-            throw new RuntimeException("Số lượng tồn kho không đủ. Chỉ còn " + variant.getStockQuantity() + " sản phẩm.");
+            throw new ApiException(HttpStatus.CONFLICT, "INSUFFICIENT_STOCK",
+                    "Số lượng tồn kho không đủ. Chỉ còn " + variant.getStockQuantity() + " sản phẩm.");
         }
 
         Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndVariantId(cart.getId(), variantId);
@@ -50,7 +57,7 @@ public class CartService {
             CartItem item = existingItem.get();
             int newQuantity = item.getQuantity() + quantity;
             if (newQuantity > variant.getStockQuantity()) {
-                throw new RuntimeException("Vượt quá số lượng tồn kho!");
+                throw new ApiException(HttpStatus.CONFLICT, "INSUFFICIENT_STOCK", "Vượt quá số lượng tồn kho!");
             }
             item.setQuantity(newQuantity);
         } else {
@@ -69,13 +76,13 @@ public class CartService {
     public Cart updateItemQuantity(Long userId, Long variantId, Integer newQuantity) {
         Cart cart = getOrCreateCart(userId);
         CartItem item = cartItemRepository.findByCartIdAndVariantId(cart.getId(), variantId)
-                .orElseThrow(() -> new RuntimeException("Sản phẩm không có trong giỏ hàng"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CART_ITEM_NOT_FOUND", "Sản phẩm không có trong giỏ hàng"));
 
         if (newQuantity <= 0) {
             cart.getItems().remove(item);
         } else {
             if (newQuantity > item.getVariant().getStockQuantity()) {
-                throw new RuntimeException("Vượt quá số lượng tồn kho!");
+                throw new ApiException(HttpStatus.CONFLICT, "INSUFFICIENT_STOCK", "Vượt quá số lượng tồn kho!");
             }
             item.setQuantity(newQuantity);
         }

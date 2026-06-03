@@ -1,6 +1,9 @@
 package com.KhoiCG.TMDT.modules.product.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.product.dto.ProductResponse;
+import org.springframework.http.HttpStatus;
+
 import com.KhoiCG.TMDT.modules.product.entity.Product;
 import com.KhoiCG.TMDT.modules.product.entity.WishList;
 import com.KhoiCG.TMDT.modules.product.entity.WishListId;
@@ -36,9 +39,9 @@ public class WishListService {
         }
 
         User user = userRepo.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Không tìm thấy người dùng."));
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm."));
 
         WishList wishList = WishList.builder()
                 .id(id)

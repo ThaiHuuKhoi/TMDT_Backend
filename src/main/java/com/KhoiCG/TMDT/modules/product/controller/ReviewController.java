@@ -1,12 +1,13 @@
 package com.KhoiCG.TMDT.modules.product.controller;
 
 import com.KhoiCG.TMDT.modules.product.dto.ReviewRequest;
+import jakarta.validation.Valid;
 import com.KhoiCG.TMDT.modules.product.dto.ReviewResponseDto;
-import com.KhoiCG.TMDT.modules.product.entity.Review;
 import com.KhoiCG.TMDT.modules.product.service.ReviewService;
 import com.KhoiCG.TMDT.modules.auth.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,14 +26,10 @@ public class ReviewController {
     }
 
     @PostMapping
-    public ResponseEntity<Review> createReview(@RequestBody ReviewRequest request) {
-        if (request.getRating() < 1 || request.getRating() > 5) {
-            return ResponseEntity.badRequest().build();
-        }
-
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ReviewResponseDto> createReview(@RequestBody @Valid ReviewRequest request) {
         UserPrincipal userDetails = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userDetails.getUser().getId();
-
         return ResponseEntity.ok(reviewService.createReview(userId, request.getProductId(), request.getRating(), request.getComment()));
     }
 }

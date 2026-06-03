@@ -43,6 +43,7 @@ public class ShippingService {
                 .providerCode(req.getProviderCode().toUpperCase())
                 .fee(fee)
                 .currency("VND")
+                .source("CARRIER")
                 .build();
     }
 

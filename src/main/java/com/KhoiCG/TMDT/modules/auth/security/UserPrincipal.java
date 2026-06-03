@@ -1,6 +1,7 @@
 package com.KhoiCG.TMDT.modules.auth.security;
 
 import com.KhoiCG.TMDT.modules.user.entity.AuthProvider;
+import com.KhoiCG.TMDT.modules.user.entity.Role;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.entity.UserProvider;
 import lombok.AllArgsConstructor;
@@ -19,20 +20,18 @@ public class UserPrincipal implements UserDetails {
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
-		String roleName = (user.getRole() == null || user.getRole().isEmpty()) ? "USER" : user.getRole();
+		Role role = user.getRole();
+		String roleName = (role != null) ? role.name() : Role.USER.name();
 		return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + roleName));
 	}
 
 	@Override
 	public String getPassword() {
-		if (user.getProviders() != null) {
-			return user.getProviders().stream()
-					.filter(p -> p.getProvider() == AuthProvider.LOCAL)
-					.map(UserProvider::getPasswordHash)
-					.findFirst()
-					.orElse("");
-		}
-		return "";
+		return user.getProviders().stream()
+				.filter(p -> p.getProvider() == AuthProvider.LOCAL)
+				.map(UserProvider::getPasswordHash)
+				.findFirst()
+				.orElse(null);
 	}
 
 	@Override
@@ -57,6 +56,6 @@ public class UserPrincipal implements UserDetails {
 
 	@Override
 	public boolean isEnabled() {
-		return user.getIsActive();
+		return Boolean.TRUE.equals(user.getIsActive());
 	}
 }

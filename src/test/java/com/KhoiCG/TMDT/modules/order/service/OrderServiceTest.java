@@ -1,15 +1,19 @@
 package com.KhoiCG.TMDT.modules.order.service;
 
-import com.KhoiCG.TMDT.modules.order.dto.CouponCheckRequest;
-import com.KhoiCG.TMDT.modules.order.dto.CouponResponse;
+import com.KhoiCG.TMDT.common.exception.ApiException;
+import com.KhoiCG.TMDT.modules.coupon.dto.CouponCheckRequest;
+import com.KhoiCG.TMDT.modules.coupon.dto.CouponResponse;
+import com.KhoiCG.TMDT.modules.coupon.repository.CouponRepository;
+import com.KhoiCG.TMDT.modules.coupon.service.CouponService;
+import com.KhoiCG.TMDT.modules.order.dto.PaymentSuccessEvent;
 import com.KhoiCG.TMDT.modules.order.entity.*;
 import com.KhoiCG.TMDT.modules.order.event.OrderCompletedEvent;
 import com.KhoiCG.TMDT.modules.order.mapper.OrderMapper;
-import com.KhoiCG.TMDT.modules.order.repository.CouponRepository;
 import com.KhoiCG.TMDT.modules.order.repository.OrderRepository;
+import com.KhoiCG.TMDT.modules.shipping.service.ShippingQuoteService;
+import com.KhoiCG.TMDT.modules.payment.dto.ShippingDetailsRequest;
 import com.KhoiCG.TMDT.modules.payment.entity.Payment;
 import com.KhoiCG.TMDT.modules.payment.repository.PaymentRepository;
-import com.KhoiCG.TMDT.modules.payment.service.StripeService;
 import com.KhoiCG.TMDT.modules.product.entity.Product;
 import com.KhoiCG.TMDT.modules.product.entity.ProductVariant;
 import com.KhoiCG.TMDT.modules.product.service.InventoryService;
@@ -33,6 +37,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,7 +47,6 @@ class OrderServiceTest {
     @Mock private OrderRepository orderRepository;
     @Mock private KafkaTemplate<String, Object> kafkaTemplate;
     @Mock private UserRepo userRepo;
-    @Mock private StripeService stripeService;
     @Mock private CartService cartService;
     @Mock private OrderMapper orderMapper;
     @Mock private InventoryService inventoryService;
@@ -50,6 +54,7 @@ class OrderServiceTest {
     @Mock private PaymentRepository paymentRepository;
     @Mock private CouponService couponService;
     @Mock private CouponRepository couponRepository;
+    @Mock private ShippingQuoteService shippingQuoteService;
 
     @InjectMocks
     private OrderService orderService;
@@ -73,6 +78,18 @@ class OrderServiceTest {
         mockPendingOrder = Order.builder()
                 .id(99L).user(mockUser).status(OrderStatus.PENDING).totalAmount(BigDecimal.valueOf(20000000))
                 .stripeSessionId("sess_123").items(new ArrayList<>()).build();
+
+        lenient().when(shippingQuoteService.computeFeeVndForItemCount(anyInt())).thenReturn(20_000L);
+    }
+
+    private static ShippingDetailsRequest sampleShipping() {
+        ShippingDetailsRequest s = new ShippingDetailsRequest();
+        s.setName("Nguyen Van A");
+        s.setEmail("buyer@gmail.com");
+        s.setPhone("0912345678");
+        s.setAddress("123 Le Loi");
+        s.setCity("Ha Noi");
+        return s;
     }
 
     // =========================================================
@@ -86,11 +103,11 @@ class OrderServiceTest {
         when(cartService.getOrCreateCart(1L)).thenReturn(mockCart);
         when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
 
-        Order savedOrder = orderService.createPendingOrder(1L, "sess_123", null);
+        Order savedOrder = orderService.createPendingOrder(1L, "sess_123", null, sampleShipping());
 
         assertNotNull(savedOrder);
         assertEquals(OrderStatus.PENDING, savedOrder.getStatus());
-        assertEquals(0, BigDecimal.valueOf(20000000).compareTo(savedOrder.getTotalAmount()));
+        assertEquals(0, BigDecimal.valueOf(20000000 + 20_000).compareTo(savedOrder.getTotalAmount()));
         assertEquals(1, savedOrder.getItems().size());
 
         // Đảm bảo không gọi Service xử lý Coupon
@@ -111,10 +128,10 @@ class OrderServiceTest {
         Coupon mockCoupon = Coupon.builder().code("SALE500K").build();
         when(couponRepository.findByCode("SALE500K")).thenReturn(Optional.of(mockCoupon));
 
-        Order savedOrder = orderService.createPendingOrder(1L, "sess_123", "SALE500K");
+        Order savedOrder = orderService.createPendingOrder(1L, "sess_123", "SALE500K", sampleShipping());
 
         // Kiểm tra tiền đã được trừ chuẩn xác chưa
-        assertEquals(0, BigDecimal.valueOf(19500000).compareTo(savedOrder.getTotalAmount()));
+        assertEquals(0, BigDecimal.valueOf(19500000 + 20_000).compareTo(savedOrder.getTotalAmount()));
         assertEquals(0, BigDecimal.valueOf(500000).compareTo(savedOrder.getDiscountAmount()));
         assertEquals(mockCoupon, savedOrder.getCoupon());
     }
@@ -128,8 +145,8 @@ class OrderServiceTest {
         when(userRepo.findById(1L)).thenReturn(Optional.of(mockUser));
         when(cartService.getOrCreateCart(1L)).thenReturn(mockCart);
 
-        Exception ex = assertThrows(RuntimeException.class, () -> {
-            orderService.createPendingOrder(1L, "sess_123", null);
+        ApiException ex = assertThrows(ApiException.class, () -> {
+            orderService.createPendingOrder(1L, "sess_123", null, sampleShipping());
         });
 
         assertTrue(ex.getMessage().contains("không đủ số lượng"));
@@ -149,7 +166,7 @@ class OrderServiceTest {
         when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
 
         // Act
-        Order completedOrder = orderService.confirmOrderPayment("sess_123", Payment.PaymentMethod.STRIPE);
+        Order completedOrder = orderService.confirmOrderPayment("sess_123", Payment.PaymentMethod.VNPAY);
 
         // Assert
         assertEquals(OrderStatus.COMPLETED, completedOrder.getStatus());
@@ -177,7 +194,7 @@ class OrderServiceTest {
         when(orderRepository.findByStripeSessionId("sess_123")).thenReturn(Optional.of(completedOrder));
 
         // Act
-        Order result = orderService.confirmOrderPayment("sess_123", Payment.PaymentMethod.STRIPE);
+        Order result = orderService.confirmOrderPayment("sess_123", Payment.PaymentMethod.VNPAY);
 
         // Assert: KHÔNG BAO GIỜ được trừ kho hay phát Event lại lần 2
         assertEquals(OrderStatus.COMPLETED, result.getStatus());
@@ -196,8 +213,8 @@ class OrderServiceTest {
         doThrow(new RuntimeException("Lỗi đồng bộ kho!")).when(inventoryService).deductInventoryForOrder(any());
 
         // Act & Assert
-        Exception ex = assertThrows(RuntimeException.class, () -> {
-            orderService.confirmOrderPayment("sess_FAIL", Payment.PaymentMethod.STRIPE);
+        ApiException ex = assertThrows(ApiException.class, () -> {
+            orderService.confirmOrderPayment("sess_FAIL", Payment.PaymentMethod.VNPAY);
         });
 
         assertTrue(ex.getMessage().contains("Xử lý thanh toán thất bại"));
@@ -206,5 +223,36 @@ class OrderServiceTest {
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
         verify(paymentRepository).save(paymentCaptor.capture());
         assertEquals(Payment.PaymentStatus.FAILED, paymentCaptor.getValue().getStatus());
+    }
+
+    @Test
+    @DisplayName("Cập nhật trạng thái: Chặn transition không hợp lệ COMPLETED -> PENDING")
+    void updateOrderStatus_InvalidTransition_ThrowsApiException() {
+        Order completedOrder = Order.builder()
+                .id(99L)
+                .status(OrderStatus.COMPLETED)
+                .statusHistories(new ArrayList<>())
+                .build();
+        when(orderRepository.findById(99L)).thenReturn(Optional.of(completedOrder));
+
+        ApiException ex = assertThrows(ApiException.class, () -> orderService.updateOrderStatus(99L, "PENDING"));
+
+        assertEquals("INVALID_ORDER_TRANSITION", ex.getCode());
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("createOrder: Trả lỗi chuẩn khi event chứa status không hợp lệ")
+    void createOrder_InvalidStatus_ThrowsApiException() {
+        PaymentSuccessEvent event = new PaymentSuccessEvent();
+        event.setUserId("1");
+        event.setAmount(100_000L);
+        event.setStatus("NOT_A_STATUS");
+
+        when(userRepo.findById(1L)).thenReturn(Optional.of(mockUser));
+
+        ApiException ex = assertThrows(ApiException.class, () -> orderService.createOrder(event));
+        assertEquals("INVALID_ORDER_STATUS", ex.getCode());
+        verify(orderRepository, never()).save(any(Order.class));
     }
 }

@@ -52,7 +52,7 @@ class EmailServiceTest {
 
     @Test
     @DisplayName("Gửi Email Đơn hàng: Map đúng dữ liệu vào Template HTML và gọi lệnh Send")
-    void sendOrderEmail_Success() {
+    void sendOrderEmail_Success() throws MessagingException {
         // Arrange
         OrderCreatedEvent event = new OrderCreatedEvent();
         event.setEmail("customer@gmail.com");
@@ -89,7 +89,7 @@ class EmailServiceTest {
 
     @Test
     @DisplayName("Gửi Email Welcome: Sinh nội dung chính xác và gọi lệnh Send")
-    void sendWelcomeEmail_Success() {
+    void sendWelcomeEmail_Success() throws MessagingException {
         // Arrange
         UserCreatedEvent event = new UserCreatedEvent();
         event.setEmail("newuser@gmail.com");
@@ -111,13 +111,11 @@ class EmailServiceTest {
     // ==========================================
 
     @Test
-    @DisplayName("Xử lý lỗi: Bắt và log MessagingException mà không làm crash ứng dụng")
-    void sendMimeMail_CatchesMessagingException() throws Exception {
-        // Arrange: Tạo một mock MimeMessage cố tình ném lỗi khi MimeMessageHelper cố gắng cài đặt người gửi
+    @DisplayName("Propagates MessagingException when SMTP/mime setup fails")
+    void sendWelcomeEmail_PropagatesMessagingException() throws Exception {
         MimeMessage mockBrokenMessage = mock(MimeMessage.class);
         when(mailSender.createMimeMessage()).thenReturn(mockBrokenMessage);
 
-        // Khi hàm setFrom được gọi, ném ra lỗi
         doThrow(new MessagingException("Lỗi cấu hình SMTP SMTP/Mạng"))
                 .when(mockBrokenMessage).setFrom(any(jakarta.mail.Address.class));
 
@@ -125,12 +123,8 @@ class EmailServiceTest {
         event.setEmail("error-case@gmail.com");
         event.setUsername("ErrorUser");
 
-        // Act: Gọi hàm (Chúng ta mong đợi nó KHÔNG ném lỗi văng ra ngoài, vì đã có try-catch)
-        assertDoesNotThrow(() -> {
-            emailService.sendWelcomeEmail(event);
-        });
+        assertThrows(MessagingException.class, () -> emailService.sendWelcomeEmail(event));
 
-        // Assert: Lệnh send cuối cùng chắc chắn không được gọi vì đã bị văng lỗi ở giữa chừng
         verify(mailSender, never()).send(any(MimeMessage.class));
     }
 }

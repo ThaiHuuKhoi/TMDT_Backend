@@ -12,7 +12,7 @@ public class BannerResponse {
     private String description;
     private String imageUrl;
     private String targetUrl;
-    private int displayOrder;
+    private Integer displayOrder;
     private TargetType targetType;
     private Long targetId;
     private String linkUrl;

@@ -11,6 +11,8 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -26,6 +28,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
 	@Autowired
@@ -36,9 +39,6 @@ public class SecurityConfig {
 
 	@Autowired
 	private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-
-	@Autowired
-	private CustomOAuth2SuccessHandler customOAuth2SuccessHandler;
 
 	@Autowired
 	private HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
@@ -60,7 +60,7 @@ public class SecurityConfig {
 	}
 
 	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain securityFilterChain(HttpSecurity http, CustomOAuth2SuccessHandler customOAuth2SuccessHandler) throws Exception {
 
 		http
 //				.csrf(csrf -> csrf.disable())
@@ -72,20 +72,39 @@ public class SecurityConfig {
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(
-								"/api/auth/**",
+								"/api/auth/register",
+								"/api/auth/verify-otp",
+								"/api/auth/login",
+								"/api/auth/refresh-token",
+								"/api/auth/forgot-password",
+								"/api/auth/reset-password",
 								"/oauth2/**",
 								"/api/login/oauth2/**",
-								"/api/products/**",
-								"/api/sessions/**",
-								"/api/orders/**",
-								"/api/webhook",
+								"/api/vnpay/ipn",
+								"/api/vnpay/return",
 								"/api/webhooks/**",
 								"/api/error",
-								"/api/banners/**",
-								"/api/reviews/**",
-								"/api/categories/**",
-								"/api/chatbot/**"
+								"/api/chatbot/**",
+								"/api/shipping/quote",
+								"/api/store/config"
 						).permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/info-pages/**").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/reviews/**").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/reviews").authenticated()
+						.requestMatchers("/api/admin/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.PATCH, "/api/products/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.POST, "/api/categories/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.PUT, "/api/categories/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.DELETE, "/api/categories/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.POST, "/api/banners/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.PUT, "/api/banners/**").hasRole("ADMIN")
+						.requestMatchers(HttpMethod.DELETE, "/api/banners/**").hasRole("ADMIN")
 						.anyRequest()
 //						.permitAll()
 						.authenticated()
@@ -97,10 +116,6 @@ public class SecurityConfig {
 						.successHandler(customOAuth2SuccessHandler)
 						.failureUrl("/login?error=true")
 						.failureHandler((request, response, exception) -> {
-							System.out.println("------------------------------------------------");
-							System.out.println("OAUTH2 LOGIN FAILED: " + exception.getMessage());
-							exception.printStackTrace();
-							System.out.println("------------------------------------------------");
 							response.sendRedirect("/login?error=true");
 						})
 				)
@@ -124,7 +139,10 @@ public class SecurityConfig {
 				.toList();
 		config.setAllowedOrigins(origins);
 		config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
-		config.setAllowedHeaders(List.of("*"));
+		config.setAllowedHeaders(List.of(
+				"Authorization", "Content-Type", "Accept", "X-Requested-With",
+				"Cache-Control", "X-CSRF-Token", "Cookie"
+		));
 		config.setAllowCredentials(true);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

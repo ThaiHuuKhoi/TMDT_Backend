@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.marketing.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.marketing.dto.BannerRequest;
 import com.KhoiCG.TMDT.modules.marketing.dto.BannerResponse;
 import com.KhoiCG.TMDT.modules.marketing.entity.Banner;
@@ -129,6 +130,32 @@ class BannerServiceTest {
         assertTrue(bannerCaptor.getValue().getIsActive());
     }
 
+    @Test
+    @DisplayName("Thêm Banner: Báo lỗi khi EXTERNAL_LINK nhưng thiếu linkUrl")
+    void saveBanner_FailWhenExternalLinkMissingLinkUrl() {
+        BannerRequest request = new BannerRequest();
+        request.setTitle("Banner ngoài");
+        request.setImageUrl("https://cdn/banner.jpg");
+        request.setTargetType(TargetType.EXTERNAL_LINK);
+
+        ApiException ex = assertThrows(ApiException.class, () -> bannerService.saveBanner(request));
+        assertEquals("BANNER_LINK_REQUIRED", ex.getCode());
+        verify(bannerRepository, never()).save(any(Banner.class));
+    }
+
+    @Test
+    @DisplayName("Thêm Banner: Báo lỗi khi PRODUCT/CATEGORY thiếu targetId")
+    void saveBanner_FailWhenProductOrCategoryMissingTargetId() {
+        BannerRequest request = new BannerRequest();
+        request.setTitle("Banner sản phẩm");
+        request.setImageUrl("https://cdn/banner.jpg");
+        request.setTargetType(TargetType.PRODUCT);
+
+        ApiException ex = assertThrows(ApiException.class, () -> bannerService.saveBanner(request));
+        assertEquals("BANNER_TARGET_ID_REQUIRED", ex.getCode());
+        verify(bannerRepository, never()).save(any(Banner.class));
+    }
+
     // ==========================================
     // 3. TEST HÀM XÓA (DELETE)
     // ==========================================
@@ -147,17 +174,18 @@ class BannerServiceTest {
     }
 
     @Test
-    @DisplayName("Xóa Banner: Ném lỗi RuntimeException khi ID không tồn tại")
+    @DisplayName("Xóa Banner: Ném lỗi ApiException khi ID không tồn tại")
     void deleteBanner_Fail_NotFound() {
         // Arrange
         when(bannerRepository.existsById(999L)).thenReturn(false);
 
         // Act & Assert
-        Exception ex = assertThrows(RuntimeException.class, () -> {
+        ApiException ex = assertThrows(ApiException.class, () -> {
             bannerService.deleteBanner(999L);
         });
 
         assertEquals("Banner không tồn tại!", ex.getMessage());
+        assertEquals("BANNER_NOT_FOUND", ex.getCode());
 
         // Đảm bảo lệnh xóa thực sự không bao giờ được gọi
         verify(bannerRepository, never()).deleteById(anyLong());

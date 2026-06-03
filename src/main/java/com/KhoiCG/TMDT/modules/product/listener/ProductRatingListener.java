@@ -1,16 +1,16 @@
 package com.KhoiCG.TMDT.modules.product.listener;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.product.entity.Product;
-import com.KhoiCG.TMDT.modules.product.entity.Review;
 import com.KhoiCG.TMDT.modules.product.event.ReviewCreatedEvent;
 import com.KhoiCG.TMDT.modules.product.repository.ProductRepository;
 import com.KhoiCG.TMDT.modules.product.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
+import java.util.List;
 import org.springframework.context.event.EventListener;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -25,24 +25,16 @@ public class ProductRatingListener {
         Long productId = event.getProductId();
 
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm."));
 
-        List<Review> reviews = reviewRepository.findByProductId(productId);
+        List<Object[]> statsList = reviewRepository.findRatingStatsByProductId(productId);
+        Object[] stats = (statsList != null && !statsList.isEmpty()) ? statsList.get(0) : new Object[]{null, 0L};
+        Double avg = (Double) stats[0];
+        Long count = (Long) stats[1];
 
-        if (reviews.isEmpty()) {
-            product.setAverageRating(0.0);
-            product.setReviewCount(0);
-        } else {
-            double average = reviews.stream()
-                    .mapToInt(Review::getRating)
-                    .average()
-                    .orElse(0.0);
-            double roundedAverage = Math.round(average * 10.0) / 10.0;
-
-            product.setAverageRating(roundedAverage);
-            product.setReviewCount(reviews.size());
-        }
-
+        product.setAverageRating(avg != null ? Math.round(avg * 10.0) / 10.0 : 0.0);
+        product.setReviewCount(count != null ? count.intValue() : 0);
         productRepository.save(product);
     }
 }

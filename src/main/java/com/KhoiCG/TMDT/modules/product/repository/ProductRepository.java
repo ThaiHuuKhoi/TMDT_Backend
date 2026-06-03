@@ -1,7 +1,9 @@
 package com.KhoiCG.TMDT.modules.product.repository;
 
 import com.KhoiCG.TMDT.modules.product.entity.Product;
+import com.KhoiCG.TMDT.modules.product.entity.ProductStatus;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
@@ -12,4 +14,7 @@ import java.util.List;
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
     boolean existsBySlug(String slug);
     List<Product> findByCategoryIdAndIdNot(Long categoryId, Long excludedId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"category", "variants"})
+    List<Product> findByStatus(ProductStatus status);
 }

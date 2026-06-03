@@ -3,11 +3,16 @@ package com.KhoiCG.TMDT.modules.chatbot.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "chat_messages")
+@Table(
+    name = "chat_messages",
+    indexes = @Index(name = "idx_chat_messages_session_created", columnList = "session_id, created_at")
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,6 +30,7 @@ public class ChatMessage {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "session_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private ChatSession session;
 
     @Enumerated(EnumType.STRING)

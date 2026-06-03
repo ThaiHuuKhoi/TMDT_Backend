@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.chatbot.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.chatbot.dto.ChatRequest;
 import com.KhoiCG.TMDT.modules.chatbot.dto.ChatResponse;
 import com.KhoiCG.TMDT.modules.chatbot.entity.ChatMessage;
@@ -7,13 +8,17 @@ import com.KhoiCG.TMDT.modules.chatbot.entity.ChatSession;
 import com.KhoiCG.TMDT.modules.chatbot.provider.ChatAdvisor;
 import com.KhoiCG.TMDT.modules.chatbot.repository.ChatMessageRepository;
 import com.KhoiCG.TMDT.modules.chatbot.repository.ChatSessionRepository;
+import com.KhoiCG.TMDT.modules.user.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -37,8 +42,8 @@ public class ChatbotService {
     }
 
     @Transactional
-    public ChatResponse chat(ChatRequest request) {
-        ChatSession session = resolveSession(request.getSessionId());
+    public ChatResponse chat(ChatRequest request, User currentUser) {
+        ChatSession session = resolveSession(request.getSessionId(), currentUser);
 
         List<ChatMessage> recent = chatMessageRepository.findTop20BySessionIdOrderByCreatedAtDesc(session.getId());
         recent = recent.stream()
@@ -72,23 +77,58 @@ public class ChatbotService {
     }
 
     private ChatAdvisor pickAdvisor() {
-        ChatAdvisor openAi = advisors.get("OPENAI");
-        if (openAi != null) {
-            return openAi;
-        }
         ChatAdvisor rules = advisors.get("RULES");
         if (rules == null) {
-            throw new RuntimeException("Chatbot chưa có advisor phù hợp (missing RULES)");
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "CHATBOT_PROVIDER_UNAVAILABLE",
+                    "Chatbot chưa có RuleBasedChatAdvisor (RULES)");
         }
         return rules;
     }
 
-    private ChatSession resolveSession(String sessionId) {
+    private ChatSession resolveSession(String sessionId, User user) {
+        if (user != null) {
+            return resolveSessionForLoggedInUser(user, sessionId);
+        }
+        return resolveAnonymousSession(sessionId);
+    }
+
+    private ChatSession resolveSessionForLoggedInUser(User user, String sessionId) {
+        if (sessionId != null && !sessionId.isBlank()) {
+            Optional<ChatSession> opt = chatSessionRepository.findById(sessionId.trim());
+            if (opt.isPresent()) {
+                ChatSession s = opt.get();
+                if (s.getUser() != null && s.getUser().getId().equals(user.getId())) {
+                    return s;
+                }
+                if (s.getUser() == null) {
+                    s.setUser(user);
+                    return chatSessionRepository.save(s);
+                }
+            }
+        }
+        return chatSessionRepository.findFirstByUser_IdOrderByCreatedAtDesc(user.getId())
+                .orElseGet(() -> chatSessionRepository.save(ChatSession.builder()
+                        .id(UUID.randomUUID().toString())
+                        .user(user)
+                        .build()));
+    }
+
+    /**
+     * Ẩn danh: không cho phép tiếp tục session đã gắn tài khoản (tránh ghi đè hội thoại người khác).
+     */
+    private ChatSession resolveAnonymousSession(String sessionId) {
         if (sessionId == null || sessionId.isBlank()) {
             return chatSessionRepository.save(ChatSession.newAnonymous());
         }
-        return chatSessionRepository.findById(sessionId)
-                .orElseGet(() -> chatSessionRepository.save(ChatSession.builder().id(sessionId).build()));
+        Optional<ChatSession> opt = chatSessionRepository.findById(sessionId.trim());
+        if (opt.isPresent()) {
+            ChatSession s = opt.get();
+            if (s.getUser() != null) {
+                return chatSessionRepository.save(ChatSession.newAnonymous());
+            }
+            return s;
+        }
+        return chatSessionRepository.save(ChatSession.newAnonymous());
     }
 }
 

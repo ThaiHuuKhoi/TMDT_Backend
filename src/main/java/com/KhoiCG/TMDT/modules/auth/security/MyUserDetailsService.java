@@ -15,9 +15,9 @@ public class MyUserDetailsService implements UserDetailsService {
 	private final UserRepo userRepo;
 
 	@Override
-	@Transactional
+	@Transactional(readOnly = true)
 	public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-		return userRepo.findByEmail(email)
+		return userRepo.findWithProvidersByEmail(email)
 				.map(UserPrincipal::new)
 				.orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 	}

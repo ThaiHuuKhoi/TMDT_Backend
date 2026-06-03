@@ -1,35 +1,32 @@
 package com.KhoiCG.TMDT.modules.product.enums;
 
-import org.springframework.data.domain.Sort;
 import lombok.Getter;
+import org.springframework.data.domain.Sort;
 
 @Getter
 public enum ProductSortType {
 
-    DEFAULT("default", Sort.by(Sort.Direction.DESC, "createdAt")),
-    PRICE_ASC("asc", Sort.by(Sort.Direction.ASC, "price")),
-    PRICE_DESC("desc", Sort.by(Sort.Direction.DESC, "price")),
-    OLDEST("oldest", Sort.by(Sort.Direction.ASC, "createdAt"));
+    DEFAULT("default", false, Sort.by(Sort.Direction.DESC, "createdAt")),
+    PRICE_ASC("asc",   true,  null),
+    PRICE_DESC("desc", true,  null),
+    OLDEST("oldest",   false, Sort.by(Sort.Direction.ASC, "createdAt"));
 
     private final String code;
+    private final boolean priceBased;
+    /** null for price-based sorts — ordering is applied via CriteriaQuery instead */
     private final Sort sort;
 
-    ProductSortType(String code, Sort sort) {
+    ProductSortType(String code, boolean priceBased, Sort sort) {
         this.code = code;
+        this.priceBased = priceBased;
         this.sort = sort;
     }
 
-    // Hàm tiện ích để map từ String gửi lên sang Sort
-    public static Sort getSortStrategy(String code) {
-        if (code == null || code.trim().isEmpty()) {
-            return DEFAULT.getSort();
+    public static ProductSortType fromCode(String code) {
+        if (code == null || code.isBlank()) return DEFAULT;
+        for (ProductSortType t : values()) {
+            if (t.code.equalsIgnoreCase(code)) return t;
         }
-
-        for (ProductSortType type : values()) {
-            if (type.getCode().equalsIgnoreCase(code)) {
-                return type.getSort();
-            }
-        }
-        return DEFAULT.getSort();
+        return DEFAULT;
     }
 }

@@ -10,4 +10,5 @@ public class ReviewResponseDto {
     private int rating;
     private String comment;
     private LocalDateTime createdAt;
+    private boolean verifiedPurchase;
 }

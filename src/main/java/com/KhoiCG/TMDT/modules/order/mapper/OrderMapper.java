@@ -5,15 +5,23 @@ import com.KhoiCG.TMDT.modules.order.dto.OrderResponse;
 import com.KhoiCG.TMDT.modules.order.dto.UserOrderDTO;
 import com.KhoiCG.TMDT.modules.order.entity.Order;
 import com.KhoiCG.TMDT.modules.order.entity.OrderItem;
+import com.KhoiCG.TMDT.modules.shipping.dto.ShippingLogResponse;
+import com.KhoiCG.TMDT.modules.shipping.repository.ShippingLogRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class OrderMapper {
 
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    private final ShippingLogRepository shippingLogRepository;
 
     public OrderResponse toOrderResponse(Order order) {
         if (order == null) return null;
@@ -24,6 +32,18 @@ public class OrderMapper {
                 .email(order.getUser().getEmail())
                 .build();
 
+        List<ShippingLogResponse> shippingLogs = order.getId() != null
+                ? shippingLogRepository.findByOrderIdOrderByReportedAtDesc(order.getId())
+                        .stream()
+                        .map(log -> ShippingLogResponse.builder()
+                                .status(log.getStatus())
+                                .message(log.getMessage())
+                                .reportedAt(log.getReportedAt() != null ? log.getReportedAt().format(ISO_FORMATTER) : null)
+                                .createdAt(log.getCreatedAt() != null ? log.getCreatedAt().format(ISO_FORMATTER) : null)
+                                .build())
+                        .collect(Collectors.toList())
+                : Collections.emptyList();
+
         return OrderResponse.builder()
                 .id(order.getId())
                 .user(userDto)
@@ -33,9 +53,12 @@ public class OrderMapper {
                 .totalAmountFormatted(String.format("%,.0f VNĐ", order.getTotalAmount()))
                 .shippingAddress(order.getShippingAddress())
                 .stripeSessionId(order.getStripeSessionId())
+                .shippingFee(order.getShippingFee())
+                .discountAmount(order.getDiscountAmount())
                 .items(order.getItems() != null ?
                         order.getItems().stream().map(this::toOrderItemResponse).collect(Collectors.toList())
                         : null)
+                .shippingLogs(shippingLogs)
                 .build();
     }
 
@@ -47,7 +70,6 @@ public class OrderMapper {
                 item.getVariant().getProduct() != null &&
                 item.getVariant().getProduct().getImages() != null &&
                 !item.getVariant().getProduct().getImages().isEmpty()) {
-
             imageUrl = item.getVariant().getProduct().getImages().get(0).getUrl();
         }
 

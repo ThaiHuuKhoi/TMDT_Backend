@@ -1,7 +1,9 @@
 package com.KhoiCG.TMDT.modules.product.controller;
 
-import com.KhoiCG.TMDT.modules.product.entity.Category;
+import com.KhoiCG.TMDT.modules.product.dto.CategoryResponse;
+import com.KhoiCG.TMDT.modules.product.dto.CategoryUpsertRequest;
 import com.KhoiCG.TMDT.modules.product.service.CategoryService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,20 +19,20 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
-    public ResponseEntity<List<Category>> getCategories() {
+    public ResponseEntity<List<CategoryResponse>> getCategories() {
         return ResponseEntity.ok(categoryService.getAllCategories());
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<Category> createCategory(@RequestBody Category category) {
-        return ResponseEntity.ok(categoryService.createCategory(category));
+    public ResponseEntity<CategoryResponse> createCategory(@RequestBody @Valid CategoryUpsertRequest request) {
+        return ResponseEntity.ok(categoryService.createCategory(request));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<Category> updateCategory(@PathVariable Long id, @RequestBody Category category) {
-        return ResponseEntity.ok(categoryService.updateCategory(id, category));
+    public ResponseEntity<CategoryResponse> updateCategory(@PathVariable Long id, @RequestBody @Valid CategoryUpsertRequest request) {
+        return ResponseEntity.ok(categoryService.updateCategory(id, request));
     }
 
     @DeleteMapping("/{id}")

@@ -1,9 +1,11 @@
 package com.KhoiCG.TMDT.modules.product.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.product.dto.ReviewResponseDto;
 import com.KhoiCG.TMDT.modules.product.entity.Product;
 import com.KhoiCG.TMDT.modules.product.entity.Review;
 import com.KhoiCG.TMDT.modules.product.event.ReviewCreatedEvent;
+import com.KhoiCG.TMDT.modules.order.repository.OrderRepository;
 import com.KhoiCG.TMDT.modules.product.repository.ProductRepository;
 import com.KhoiCG.TMDT.modules.product.repository.ReviewRepository;
 import com.KhoiCG.TMDT.modules.user.entity.User;
@@ -24,6 +26,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +34,7 @@ class ReviewServiceTest {
 
     @Mock private ReviewRepository reviewRepository;
     @Mock private ProductRepository productRepository;
+    @Mock private OrderRepository orderRepository;
     @Mock private UserRepo userRepo;
     @Mock private ApplicationEventPublisher eventPublisher;
 
@@ -64,15 +68,18 @@ class ReviewServiceTest {
     @DisplayName("Tạo đánh giá: Thành công, lưu DB và phát Event tính điểm trung bình")
     void createReview_Success() {
         when(reviewRepository.existsByUserIdAndProductId(1L, 100L)).thenReturn(false);
+        when(orderRepository.existsPurchasedProduct(eq(1L), eq(100L), any())).thenReturn(true);
         when(userRepo.findById(1L)).thenReturn(Optional.of(mockUser));
         when(productRepository.findById(100L)).thenReturn(Optional.of(mockProduct));
         when(reviewRepository.save(any(Review.class))).thenReturn(mockReview);
 
-        Review result = reviewService.createReview(1L, 100L, 5, "Sản phẩm quá tuyệt vời!");
+        ReviewResponseDto result = reviewService.createReview(1L, 100L, 5, "Sản phẩm quá tuyệt vời!");
 
         assertNotNull(result);
         assertEquals(5, result.getRating());
         assertEquals("Sản phẩm quá tuyệt vời!", result.getComment());
+        assertEquals("Khách hàng A", result.getUserName());
+        assertEquals(10L, result.getId());
 
         // Kiểm tra xem sự kiện có được phát ra đúng với Product ID không
         ArgumentCaptor<ReviewCreatedEvent> eventCaptor = ArgumentCaptor.forClass(ReviewCreatedEvent.class);
@@ -86,10 +93,11 @@ class ReviewServiceTest {
         // Giả lập DB trả về true (đã từng đánh giá)
         when(reviewRepository.existsByUserIdAndProductId(1L, 100L)).thenReturn(true);
 
-        Exception ex = assertThrows(RuntimeException.class, () ->
+        ApiException ex = assertThrows(ApiException.class, () ->
                 reviewService.createReview(1L, 100L, 5, "Good!")
         );
 
+        assertEquals("REVIEW_ALREADY_EXISTS", ex.getCode());
         assertEquals("Bạn đã đánh giá sản phẩm này rồi!", ex.getMessage());
         verify(reviewRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
@@ -101,11 +109,28 @@ class ReviewServiceTest {
         when(reviewRepository.existsByUserIdAndProductId(1L, 100L)).thenReturn(false);
         when(userRepo.findById(1L)).thenReturn(Optional.empty());
 
-        Exception ex = assertThrows(RuntimeException.class, () ->
+        ApiException ex = assertThrows(ApiException.class, () ->
                 reviewService.createReview(1L, 100L, 5, "Good!")
         );
 
+        assertEquals("USER_NOT_FOUND", ex.getCode());
         assertEquals("Người dùng không tồn tại", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Tạo đánh giá: Ném lỗi nếu chưa mua sản phẩm")
+    void createReview_Fail_PurchaseRequired() {
+        when(reviewRepository.existsByUserIdAndProductId(1L, 100L)).thenReturn(false);
+        when(userRepo.findById(1L)).thenReturn(Optional.of(mockUser));
+        when(productRepository.findById(100L)).thenReturn(Optional.of(mockProduct));
+        when(orderRepository.existsPurchasedProduct(eq(1L), eq(100L), any())).thenReturn(false);
+
+        ApiException ex = assertThrows(ApiException.class, () ->
+                reviewService.createReview(1L, 100L, 5, "Good!")
+        );
+
+        assertEquals("PURCHASE_REQUIRED", ex.getCode());
+        verify(reviewRepository, never()).save(any());
     }
 
     @Test
@@ -115,10 +140,11 @@ class ReviewServiceTest {
         when(userRepo.findById(1L)).thenReturn(Optional.of(mockUser));
         when(productRepository.findById(100L)).thenReturn(Optional.empty());
 
-        Exception ex = assertThrows(RuntimeException.class, () ->
+        ApiException ex = assertThrows(ApiException.class, () ->
                 reviewService.createReview(1L, 100L, 5, "Good!")
         );
 
+        assertEquals("PRODUCT_NOT_FOUND", ex.getCode());
         assertEquals("Sản phẩm không tồn tại", ex.getMessage());
     }
 

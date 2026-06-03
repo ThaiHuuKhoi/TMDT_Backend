@@ -5,6 +5,7 @@ import com.KhoiCG.TMDT.modules.order.entity.Order;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,6 +31,7 @@ public class Payment {
     @Column(nullable = false)
     private PaymentMethod paymentMethod;
 
+    @Column(unique = true)
     private String transactionId;
 
     @Column(nullable = false, precision = 15, scale = 2)
@@ -43,8 +45,11 @@ public class Payment {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
     public enum PaymentMethod {
-        STRIPE, PAYPAL, VNPAY, COD
+        STRIPE, VNPAY, COD, MOMO
     }
 
     public enum PaymentStatus {

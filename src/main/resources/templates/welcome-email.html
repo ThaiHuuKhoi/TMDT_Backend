@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+<div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+    <div style="background-color: #000; color: #fff; padding: 20px; text-align: center;">
+        <h2 style="margin: 0;">Chào mừng đến với ShopKCG!</h2>
+    </div>
+    <div style="padding: 20px;">
+        <p>Xin chào <strong th:text="${username}">bạn</strong>,</p>
+        <p>Tài khoản của bạn đã được tạo thành công. Chúc bạn mua sắm vui vẻ!</p>
+        <a th:href="${shopUrl}" style="display: inline-block; background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Mua sắm ngay</a>
+    </div>
+    <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; color: #666;">
+        &copy; 2026 ShopKCG. All rights reserved.
+    </div>
+</div>
+</body>
+</html>

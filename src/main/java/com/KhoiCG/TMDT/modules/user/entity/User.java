@@ -27,8 +27,9 @@ public class User {
 
 	private String name;
 
+	@Enumerated(EnumType.STRING)
 	@Builder.Default
-	private String role = "USER";
+	private Role role = Role.USER;
 
 	@Builder.Default
 	private Boolean isActive = true;
@@ -36,7 +37,8 @@ public class User {
 	@Column(name = "avatar")
 	private String avatar;
 
-	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+	@Builder.Default
+	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
 	private List<UserProvider> providers = new ArrayList<>();
 
 	@CreationTimestamp

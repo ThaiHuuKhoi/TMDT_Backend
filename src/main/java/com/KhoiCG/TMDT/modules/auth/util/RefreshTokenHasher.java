@@ -1,0 +1,25 @@
+package com.KhoiCG.TMDT.modules.auth.util;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+
+public final class RefreshTokenHasher {
+
+    private RefreshTokenHasher() {
+    }
+
+    public static String sha256Hex(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new IllegalArgumentException("refresh token must not be blank");
+        }
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(rawToken.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+}

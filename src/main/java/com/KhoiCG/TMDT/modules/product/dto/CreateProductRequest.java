@@ -38,6 +38,9 @@ public class CreateProductRequest {
         @NotNull(message = "Giá không được để trống")
         private BigDecimal price;
 
+        /** Giá niêm yết (tuỳ chọn) — dùng để hiển thị gạch ngang so với giá bán. */
+        private BigDecimal originalPrice;
+
         @NotNull(message = "Số lượng tồn kho không được để trống")
         private Integer stockQuantity;
 

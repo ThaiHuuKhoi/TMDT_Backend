@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.common.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +16,7 @@ import java.util.Map;
 
 @Configuration
 @EnableCaching
+@ConditionalOnBean(RedisConnectionFactory.class)
 public class RedisConfig {
 
     @Bean
@@ -32,9 +34,6 @@ public class RedisConfig {
                                         RedisSerializer.json()));
 
         Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
-
-        cacheConfigurations.put("categories",
-                defaultCacheConfig.entryTtl(Duration.ofHours(24)));
 
         cacheConfigurations.put("product_details",
                 defaultCacheConfig.entryTtl(Duration.ofHours(1)));

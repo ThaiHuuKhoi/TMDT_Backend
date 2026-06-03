@@ -1,31 +1,41 @@
 package com.KhoiCG.TMDT.modules.auth.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.auth.dto.AuthResponse;
 import com.KhoiCG.TMDT.modules.auth.dto.LoginRequest;
 import com.KhoiCG.TMDT.modules.auth.dto.RegisterRequest;
-import com.KhoiCG.TMDT.modules.auth.event.UserRegisteredEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.KhoiCG.TMDT.modules.email.service.NotificationService;
+import jakarta.mail.MessagingException;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import com.KhoiCG.TMDT.modules.user.repository.UserRepo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AuthServiceTest {
 
     @Mock private UserRepo userRepo;
@@ -34,6 +44,11 @@ class AuthServiceTest {
     @Mock private TokenService tokenService;
     @Mock private AuthenticationManager authenticationManager;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private NotificationService notificationService;
+    @Mock private StringRedisTemplate stringRedisTemplate;
+    @Mock private ObjectMapper objectMapper;
+    @Mock private ValueOperations<String, String> valueOperations;
+    @Mock private AuthRegistrationRateLimiter authRegistrationRateLimiter;
 
     @InjectMocks
     private AuthService authService;
@@ -44,6 +59,11 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        doNothing().when(authRegistrationRateLimiter).assertRegisterAllowed(anyString(), anyString());
+        doNothing().when(authRegistrationRateLimiter).assertVerifyOtpAllowed(anyString());
+        doNothing().when(authRegistrationRateLimiter).onOtpMismatch(anyString());
+        doNothing().when(authRegistrationRateLimiter).clearOtpFailures(anyString());
         mockUser = User.builder()
                 .id(1L)
                 .email("test@tmdt.com")
@@ -68,50 +88,38 @@ class AuthServiceTest {
     // ==========================================
 
     @Test
-    @DisplayName("Đăng ký: Thành công, lưu User, tạo Token và phát Event")
-    void register_Success() {
-        // Arrange
+    @DisplayName("Đăng ký: Thành công, tạo OTP và gửi email xác minh")
+    void register_Success() throws Exception {
         when(userRepo.existsByEmail(registerRequest.getEmail())).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("hashedPassword");
-        when(userRepo.save(any(User.class))).thenReturn(mockUser);
+        when(passwordEncoder.encode(anyString())).thenReturn("hashedOtp");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
 
-        when(jwtService.generateToken(mockUser.getEmail())).thenReturn("mockAccessToken");
-        when(jwtService.generateRefreshToken(mockUser.getEmail())).thenReturn("mockRefreshToken");
+        authService.register(registerRequest, "127.0.0.1");
 
-        // Act
-        AuthResponse response = authService.register(registerRequest);
-
-        // Assert
-        assertNotNull(response);
-        assertEquals("mockAccessToken", response.getAccessToken());
-        assertEquals("mockRefreshToken", response.getRefreshToken());
-
-        // Kiểm tra xem mật khẩu đã được băm trước khi lưu chưa
-        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-        verify(userRepo).save(userCaptor.capture());
-        assertEquals("hashedPassword", userCaptor.getValue().getProviders().get(0).getPasswordHash());
-
-        // Kiểm tra xem hệ thống đã phát Event chào mừng chưa
-        verify(eventPublisher, times(1)).publishEvent(any(UserRegisteredEvent.class));
-
-        // Kiểm tra xem refresh token đã được lưu vào DB để quản lý đăng xuất chưa
-        verify(tokenService, times(1)).saveRefreshToken(mockUser, "mockRefreshToken");
+        verify(authRegistrationRateLimiter).assertRegisterAllowed(eq(registerRequest.getEmail()), eq("127.0.0.1"));
+        InOrder order = inOrder(notificationService, valueOperations);
+        order.verify(notificationService)
+                .sendRegistrationOtpEmail(eq(registerRequest.getEmail()), eq(registerRequest.getName()), anyString());
+        order.verify(valueOperations).set(contains("auth:reg-otp:"), anyString(), any(Duration.class));
+        verify(userRepo, never()).save(any(User.class));
     }
 
     @Test
     @DisplayName("Đăng ký: Thất bại, ném lỗi khi Email đã tồn tại trong hệ thống")
-    void register_Fail_EmailExists() {
+    void register_Fail_EmailExists() throws MessagingException {
         // Arrange: Giả sử email đã bị người khác đăng ký
         when(userRepo.existsByEmail(registerRequest.getEmail())).thenReturn(true);
 
         // Act & Assert
-        Exception ex = assertThrows(RuntimeException.class, () -> authService.register(registerRequest));
-        assertEquals("Email đã được sử dụng!", ex.getMessage());
+        ApiException ex = assertThrows(ApiException.class, () -> authService.register(registerRequest, "127.0.0.1"));
+        assertEquals("EMAIL_ALREADY_USED", ex.getCode());
+        assertEquals("Email đã được sử dụng.", ex.getMessage());
 
-        // Tuyệt đối không được gọi hàm save hay generateToken nếu bị lỗi chặn lại
+        verify(authRegistrationRateLimiter).assertRegisterAllowed(eq(registerRequest.getEmail()), eq("127.0.0.1"));
         verify(userRepo, never()).save(any(User.class));
-        verify(jwtService, never()).generateToken(anyString());
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
+        verify(notificationService, never()).sendRegistrationOtpEmail(anyString(), anyString(), anyString());
     }
 
     // ==========================================
@@ -124,7 +132,7 @@ class AuthServiceTest {
         // Arrange
         // (AuthenticationManager sẽ im lặng cho qua nếu đăng nhập đúng, nếu sai nó sẽ ném BadCredentialsException)
         when(userRepo.findByEmail(loginRequest.getEmail())).thenReturn(Optional.of(mockUser));
-        when(jwtService.generateToken(mockUser.getEmail())).thenReturn("newAccessToken");
+        when(jwtService.generateToken(mockUser.getEmail(), mockUser.getRole())).thenReturn("newAccessToken");
         when(jwtService.generateRefreshToken(mockUser.getEmail())).thenReturn("newRefreshToken");
 
         // Act

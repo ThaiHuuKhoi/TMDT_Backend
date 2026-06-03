@@ -1,12 +1,13 @@
 package com.KhoiCG.TMDT.modules.order.listener;
 
-import com.KhoiCG.TMDT.modules.order.dto.OrderCreatedEvent;
+import com.KhoiCG.TMDT.modules.email.dto.OrderCreatedEvent;
+import com.KhoiCG.TMDT.modules.email.service.NotificationService;
 import com.KhoiCG.TMDT.modules.order.event.OrderCompletedEvent;
 import com.KhoiCG.TMDT.modules.order.service.CartService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,8 +16,9 @@ import org.springframework.stereotype.Component;
 public class OrderPostProcessorListener {
 
     private final CartService cartService;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final NotificationService notificationService;
 
+    @Async
     @EventListener
     public void handleOrderCompleted(OrderCompletedEvent event) {
         Long userId = event.getOrder().getUser().getId();
@@ -24,12 +26,11 @@ public class OrderPostProcessorListener {
         try {
             cartService.clearCart(userId);
 
-            OrderCreatedEvent kafkaEvent = new OrderCreatedEvent(
-                    event.getOrder().getUser().getEmail(),
-                    event.getOrder().getTotalAmount().longValue(),
-                    "COMPLETED"
-            );
-            kafkaTemplate.send("order.created", kafkaEvent);
+            OrderCreatedEvent emailEvent = new OrderCreatedEvent();
+            emailEvent.setEmail(event.getOrder().getUser().getEmail());
+            emailEvent.setAmount(event.getOrder().getTotalAmount().longValue());
+            emailEvent.setStatus(event.getOrder().getStatus().name());
+            notificationService.sendOrderEmail(emailEvent);
 
             log.info("Đã xử lý xong các tác vụ hậu cần cho đơn hàng của user: {}", userId);
         } catch (Exception e) {

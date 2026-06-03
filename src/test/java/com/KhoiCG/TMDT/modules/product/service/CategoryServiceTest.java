@@ -1,12 +1,14 @@
 package com.KhoiCG.TMDT.modules.product.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
+import com.KhoiCG.TMDT.modules.product.dto.CategoryResponse;
+import com.KhoiCG.TMDT.modules.product.dto.CategoryUpsertRequest;
 import com.KhoiCG.TMDT.modules.product.entity.Category;
 import com.KhoiCG.TMDT.modules.product.repository.CategoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -21,6 +23,15 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class CategoryServiceTest {
 
+    private static Category category(Long id, String name, String slug, String description) {
+        Category c = new Category();
+        c.setId(id);
+        c.setName(name);
+        c.setSlug(slug);
+        c.setDescription(description);
+        return c;
+    }
+
     @Mock
     private CategoryRepository categoryRepository;
 
@@ -32,7 +43,7 @@ class CategoryServiceTest {
     @BeforeEach
     void setUp() {
         // Dùng Constructor vì Entity Category hiện tại không có @Builder
-        mockCategory = new Category(1L, "Điện thoại", "dien-thoai", "phone.png");
+        mockCategory = category(1L, "Điện thoại", "dien-thoai", "phone.png");
     }
 
     // ==========================================
@@ -43,11 +54,11 @@ class CategoryServiceTest {
     @DisplayName("Lấy danh sách Danh mục: Trả về thành công toàn bộ dữ liệu")
     void getAllCategories_Success() {
         // Arrange
-        Category laptopCategory = new Category(2L, "Laptop", "laptop", "laptop.png");
+        Category laptopCategory = category(2L, "Laptop", "laptop", "laptop.png");
         when(categoryRepository.findAll()).thenReturn(List.of(mockCategory, laptopCategory));
 
         // Act
-        List<Category> result = categoryService.getAllCategories();
+        List<CategoryResponse> result = categoryService.getAllCategories();
 
         // Assert
         assertNotNull(result);
@@ -64,7 +75,11 @@ class CategoryServiceTest {
     @DisplayName("Thêm mới Danh mục: Lưu thành công và trả về Entity")
     void createCategory_Success() {
         // Arrange
-        Category newCategory = new Category(null, "Máy tính bảng", "tablet", "tablet.png");
+        CategoryUpsertRequest newCategory = new CategoryUpsertRequest();
+        newCategory.setName("Máy tính bảng");
+        newCategory.setSlug("tablet");
+        newCategory.setDescription("tablet.png");
+        newCategory.setIsActive(true);
 
         when(categoryRepository.save(any(Category.class))).thenAnswer(i -> {
             Category saved = i.getArgument(0);
@@ -73,15 +88,14 @@ class CategoryServiceTest {
         });
 
         // Act
-        Category result = categoryService.createCategory(newCategory);
+        CategoryResponse result = categoryService.createCategory(newCategory);
 
         // Assert
         assertNotNull(result.getId());
         assertEquals(3L, result.getId());
         assertEquals("Máy tính bảng", result.getName());
 
-        ArgumentCaptor<Category> captor = ArgumentCaptor.forClass(Category.class);
-        verify(categoryRepository, times(1)).save(captor.capture());
+        verify(categoryRepository, times(1)).save(any(Category.class));
     }
 
     // ==========================================
@@ -92,13 +106,14 @@ class CategoryServiceTest {
     @DisplayName("Cập nhật Danh mục: Thành công khi ID tồn tại")
     void updateCategory_Success() {
         // Arrange: Dữ liệu gửi lên để sửa (ví dụ đổi tên thành Smartphone)
-        Category updateDetails = new Category(null, "Smartphone", null, null);
+        CategoryUpsertRequest updateDetails = new CategoryUpsertRequest();
+        updateDetails.setName("Smartphone");
 
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(mockCategory));
         when(categoryRepository.save(any(Category.class))).thenAnswer(i -> i.getArgument(0));
 
         // Act
-        Category updatedCategory = categoryService.updateCategory(1L, updateDetails);
+        CategoryResponse updatedCategory = categoryService.updateCategory(1L, updateDetails);
 
         // Assert
         assertNotNull(updatedCategory);
@@ -113,15 +128,16 @@ class CategoryServiceTest {
     @DisplayName("Cập nhật Danh mục: Ném lỗi nếu ID không tồn tại")
     void updateCategory_Fail_NotFound() {
         // Arrange
-        Category updateDetails = new Category(null, "Smartphone", null, null);
+        CategoryUpsertRequest updateDetails = new CategoryUpsertRequest();
+        updateDetails.setName("Smartphone");
         when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        Exception ex = assertThrows(RuntimeException.class, () -> {
+        ApiException ex = assertThrows(ApiException.class, () -> {
             categoryService.updateCategory(99L, updateDetails);
         });
 
-        assertEquals("Category not found", ex.getMessage());
+        assertEquals("CATEGORY_NOT_FOUND", ex.getCode());
         // Chắc chắn lệnh save không được gọi để bảo vệ DB
         verify(categoryRepository, never()).save(any());
     }
@@ -133,6 +149,7 @@ class CategoryServiceTest {
     @Test
     @DisplayName("Xóa Danh mục: Gọi thành công lệnh xóa theo ID")
     void deleteCategory_Success() {
+        when(categoryRepository.existsById(1L)).thenReturn(true);
         // Act
         categoryService.deleteCategory(1L);
 

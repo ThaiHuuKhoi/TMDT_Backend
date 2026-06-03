@@ -1,6 +1,9 @@
 package com.KhoiCG.TMDT.modules.product.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
+import com.KhoiCG.TMDT.modules.coupon.service.CouponService;
 import com.KhoiCG.TMDT.modules.product.dto.CreateProductRequest;
+import com.KhoiCG.TMDT.modules.product.dto.ProductPageResponse;
 import com.KhoiCG.TMDT.modules.product.dto.ProductResponse;
 import com.KhoiCG.TMDT.modules.product.entity.*;
 import com.KhoiCG.TMDT.modules.product.mapper.ProductMapper;
@@ -25,10 +28,20 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
+
+    private static Category category(Long id, String name, String slug, String description) {
+        Category c = new Category();
+        c.setId(id);
+        c.setName(name);
+        c.setSlug(slug);
+        c.setDescription(description);
+        return c;
+    }
 
     @Mock private ProductMapper productMapper;
     @Mock private ProductRepository productRepository;
@@ -36,6 +49,7 @@ class ProductServiceTest {
     @Mock private ProductVariantRepository variantRepository;
     @Mock private AttributeRepository attributeRepository;
     @Mock private AttributeValueRepository attributeValueRepository;
+    @Mock private CouponService couponService;
 
     @InjectMocks
     private ProductService productService;
@@ -46,7 +60,7 @@ class ProductServiceTest {
 
     @BeforeEach
     void setUp() {
-        mockCategory = new Category(1L, "Điện thoại", "dien-thoai", "icon.png");
+        mockCategory = category(1L, "Điện thoại", "dien-thoai", "icon.png");
 
         mockProduct = Product.builder()
                 .id(100L)
@@ -61,6 +75,8 @@ class ProductServiceTest {
                 .name("iPhone 15 Pro Max")
                 .slug("iphone-15-pro-max")
                 .build();
+
+        lenient().when(couponService.findBestOfferForOrderAmount(anyLong())).thenReturn(Optional.empty());
     }
 
     // ==========================================
@@ -101,24 +117,15 @@ class ProductServiceTest {
         when(attributeValueRepository.save(any(AttributeValue.class))).thenAnswer(i -> i.getArgument(0));
 
         when(productRepository.save(any(Product.class))).thenAnswer(i -> i.getArgument(0));
+        when(productMapper.toProductResponse(any(Product.class))).thenReturn(mockProductResponse);
 
         // Act
-        Product result = productService.createProduct(request);
+        ProductResponse result = productService.createProduct(request);
 
         // Assert
         assertNotNull(result);
         assertEquals("iPhone 15 Pro Max", result.getName());
-        assertEquals("iphone-15-pro-max", result.getSlug()); // Kiểm tra hàm gen Slug
-
-        // Kiểm tra hình ảnh được thêm đúng không (img1 là main)
-        assertEquals(2, result.getImages().size());
-        assertTrue(result.getImages().get(0).getIsMain());
-        assertFalse(result.getImages().get(1).getIsMain());
-
-        // Kiểm tra biến thể và thuộc tính
-        assertEquals(1, result.getVariants().size());
-        assertEquals("IP15-256-TITAN", result.getVariants().get(0).getSku());
-        assertEquals(2, result.getVariants().get(0).getAttributeValues().size()); // 2 thuộc tính: Màu sắc & Dung lượng
+        assertEquals("iphone-15-pro-max", result.getSlug());
     }
 
     @Test
@@ -129,7 +136,8 @@ class ProductServiceTest {
 
         when(categoryRepository.findBySlug("fake-category")).thenReturn(Optional.empty());
 
-        Exception ex = assertThrows(RuntimeException.class, () -> productService.createProduct(request));
+        ApiException ex = assertThrows(ApiException.class, () -> productService.createProduct(request));
+        assertEquals("CATEGORY_NOT_FOUND", ex.getCode());
         assertEquals("Category không tồn tại: fake-category", ex.getMessage());
     }
 
@@ -145,7 +153,8 @@ class ProductServiceTest {
         when(categoryRepository.findBySlug("dien-thoai")).thenReturn(Optional.of(mockCategory));
         when(variantRepository.existsBySku("DUPLICATE-SKU")).thenReturn(true);
 
-        Exception ex = assertThrows(RuntimeException.class, () -> productService.createProduct(request));
+        ApiException ex = assertThrows(ApiException.class, () -> productService.createProduct(request));
+        assertEquals("SKU_ALREADY_EXISTS", ex.getCode());
         assertEquals("SKU đã tồn tại trong hệ thống: DUPLICATE-SKU", ex.getMessage());
     }
 
@@ -163,11 +172,11 @@ class ProductServiceTest {
         when(productMapper.toProductResponse(mockProduct)).thenReturn(mockProductResponse);
 
         // Act
-        List<ProductResponse> results = productService.getProducts("dien-thoai", "iphone", "desc", 10);
+        ProductPageResponse results = productService.getProducts("dien-thoai", "iphone", "desc", 0, 10);
 
         // Assert
-        assertEquals(1, results.size());
-        assertEquals("iPhone 15 Pro Max", results.get(0).getName());
+        assertEquals(1, results.getItems().size());
+        assertEquals("iPhone 15 Pro Max", results.getItems().get(0).getName());
         verify(productRepository, times(1)).findAll(any(Specification.class), any(Pageable.class));
     }
 

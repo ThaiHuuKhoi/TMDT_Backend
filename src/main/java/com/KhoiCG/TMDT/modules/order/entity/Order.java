@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.order.entity;
 
+import com.KhoiCG.TMDT.modules.coupon.entity.Coupon;
 import com.KhoiCG.TMDT.modules.shipping.entity.ShippingLog;
 import com.KhoiCG.TMDT.modules.user.entity.User;
 import jakarta.persistence.*;
@@ -47,7 +48,18 @@ public class Order {
     @Column(nullable = false)
     private OrderStatus status;
 
+    @Column(name = "stripe_session_id")
     private String stripeSessionId;
+
+    @Column(length = 10)
+    @Builder.Default
+    private String currency = "VND";
+
+    @Column(name = "shipping_name")
+    private String shippingName;
+
+    @Column(name = "shipping_phone", length = 50)
+    private String shippingPhone;
 
     @Column(columnDefinition = "TEXT")
     private String shippingAddress;
@@ -79,6 +91,11 @@ public class Order {
     @OrderBy("reportedAt DESC") // Sắp xếp giảm dần để Frontend dễ lấy log mới nhất
     @Builder.Default
     private List<ShippingLog> shippingLogs = new ArrayList<>();
+
+    /** true khi kho đã bị trừ lúc tạo pending (VNPay). false khi chưa trừ (admin tạo tay). */
+    @Column(name = "inventory_reserved")
+    @Builder.Default
+    private boolean inventoryReserved = false;
 
     public void addOrderItem(OrderItem item) {
         items.add(item);

@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.product.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.order.entity.OrderItem;
 import com.KhoiCG.TMDT.modules.product.entity.ProductVariant;
 import com.KhoiCG.TMDT.modules.product.repository.ProductVariantRepository;
@@ -100,11 +101,12 @@ class InventoryServiceTest {
         List<OrderItem> items = List.of(item1, item2);
 
         // Act & Assert
-        Exception ex = assertThrows(RuntimeException.class, () -> {
+        ApiException ex = assertThrows(ApiException.class, () -> {
             inventoryService.deductInventoryForOrder(items);
         });
 
         // Kiểm tra xem câu báo lỗi có đúng chuẩn thân thiện với người dùng không
+        assertEquals("INSUFFICIENT_STOCK", ex.getCode());
         assertEquals("Sản phẩm 'Laptop Gaming' vừa hết hàng. Vui lòng liên hệ CSKH!", ex.getMessage());
 
         // Do sử dụng @Transactional, khi lỗi xảy ra ở giữa vòng lặp, toàn bộ tiến trình sẽ bị Rollback ở Database.

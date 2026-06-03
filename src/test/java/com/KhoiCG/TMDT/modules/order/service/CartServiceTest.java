@@ -1,5 +1,6 @@
 package com.KhoiCG.TMDT.modules.order.service;
 
+import com.KhoiCG.TMDT.common.exception.ApiException;
 import com.KhoiCG.TMDT.modules.order.entity.Cart;
 import com.KhoiCG.TMDT.modules.order.entity.CartItem;
 import com.KhoiCG.TMDT.modules.order.repository.CartItemRepository;
@@ -99,7 +100,7 @@ class CartServiceTest {
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.empty());
         when(userRepo.findById(1L)).thenReturn(Optional.empty());
 
-        Exception ex = assertThrows(RuntimeException.class, () -> cartService.getOrCreateCart(1L));
+        ApiException ex = assertThrows(ApiException.class, () -> cartService.getOrCreateCart(1L));
         assertEquals("Không tìm thấy User", ex.getMessage());
     }
 
@@ -114,7 +115,7 @@ class CartServiceTest {
         when(variantRepository.findById(50L)).thenReturn(Optional.of(mockVariant)); // Tồn kho: 10
 
         // Khách đòi mua 15 cái
-        Exception ex = assertThrows(RuntimeException.class, () -> cartService.addToCart(1L, 50L, 15));
+        ApiException ex = assertThrows(ApiException.class, () -> cartService.addToCart(1L, 50L, 15));
         assertTrue(ex.getMessage().contains("Số lượng tồn kho không đủ"));
     }
 
@@ -160,7 +161,7 @@ class CartServiceTest {
         when(cartItemRepository.findByCartIdAndVariantId(100L, 50L)).thenReturn(Optional.of(mockCartItem));
 
         // Mua thêm 9 cái (Tổng = 11 > 10)
-        Exception ex = assertThrows(RuntimeException.class, () -> cartService.addToCart(1L, 50L, 9));
+        ApiException ex = assertThrows(ApiException.class, () -> cartService.addToCart(1L, 50L, 9));
         assertEquals("Vượt quá số lượng tồn kho!", ex.getMessage());
     }
 
@@ -192,7 +193,7 @@ class CartServiceTest {
         when(cartItemRepository.findByCartIdAndVariantId(100L, 50L)).thenReturn(Optional.of(mockCartItem));
 
         // Sửa số lượng thành 20 (Kho chỉ có 10)
-        Exception ex = assertThrows(RuntimeException.class, () -> cartService.updateItemQuantity(1L, 50L, 20));
+        ApiException ex = assertThrows(ApiException.class, () -> cartService.updateItemQuantity(1L, 50L, 20));
         assertEquals("Vượt quá số lượng tồn kho!", ex.getMessage());
     }
 

@@ -36,10 +36,21 @@ public class ProductResponse {
 
     @Data
     @Builder
+    public static class BestPromoDto {
+        private String code;
+        private Long discountAmount;
+        private Long finalPrice;
+    }
+
+    @Data
+    @Builder
     public static class VariantDto {
         private Long id;
         private String sku;
         private BigDecimal price;
+        private BigDecimal originalPrice;
+        /** Mã giảm giá tốt nhất áp được lên giá bán (1 sp), nếu có. */
+        private BestPromoDto bestPromo;
         private Integer stockQuantity;
         private Integer version;
         private Boolean isActive;
