@@ -88,6 +88,7 @@ public class SecurityConfig {
 								"/api/shipping/quote",
 								"/api/store/config"
 						).permitAll()
+						.requestMatchers("/actuator/health").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/info-pages/**").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
