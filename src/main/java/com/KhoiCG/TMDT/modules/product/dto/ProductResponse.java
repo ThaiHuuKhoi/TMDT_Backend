@@ -3,13 +3,14 @@ package com.KhoiCG.TMDT.modules.product.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
 @Builder
-public class ProductResponse {
+public class ProductResponse implements Serializable {
     private Long id;
     private String name;
     private String slug;
@@ -27,7 +28,7 @@ public class ProductResponse {
 
     @Data
     @Builder
-    public static class CategoryDto {
+    public static class CategoryDto implements Serializable {
         private Long id;
         private String name;
         private String slug;
@@ -36,7 +37,7 @@ public class ProductResponse {
 
     @Data
     @Builder
-    public static class BestPromoDto {
+    public static class BestPromoDto implements Serializable {
         private String code;
         private Long discountAmount;
         private Long finalPrice;
@@ -44,7 +45,7 @@ public class ProductResponse {
 
     @Data
     @Builder
-    public static class VariantDto {
+    public static class VariantDto implements Serializable {
         private Long id;
         private String sku;
         private BigDecimal price;
@@ -61,7 +62,7 @@ public class ProductResponse {
 
     @Data
     @Builder
-    public static class AttributeValueDto {
+    public static class AttributeValueDto implements Serializable {
         private Long id;
         private String value;
         private AttributeDto attribute;
@@ -69,14 +70,14 @@ public class ProductResponse {
 
     @Data
     @Builder
-    public static class AttributeDto {
+    public static class AttributeDto implements Serializable {
         private Long id;
         private String name;
     }
 
     @Data
     @Builder
-    public static class ImageDto {
+    public static class ImageDto implements Serializable {
         private Long id;
         private String url;
         private Boolean isMain;
