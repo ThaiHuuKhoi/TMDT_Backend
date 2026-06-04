@@ -3,6 +3,7 @@ package com.KhoiCG.TMDT.modules.auth.controller;
 import com.KhoiCG.TMDT.modules.auth.service.AuthService;
 import com.KhoiCG.TMDT.modules.auth.service.AuthLoginRateLimiter;
 import com.KhoiCG.TMDT.modules.auth.service.AuthRegistrationRateLimiter;
+import com.KhoiCG.TMDT.modules.auth.service.FeatureFlagService;
 import com.KhoiCG.TMDT.modules.auth.service.JwtService;
 import com.KhoiCG.TMDT.modules.auth.dto.*;
 import com.KhoiCG.TMDT.modules.auth.service.PasswordResetService;
@@ -30,6 +31,7 @@ public class AuthController {
     private final JwtService jwtService;
     private final AuthRegistrationRateLimiter authRegistrationRateLimiter;
     private final AuthLoginRateLimiter authLoginRateLimiter;
+    private final FeatureFlagService featureFlagService;
 
     @Value("${application.security.cookies.secure:true}")
     private boolean secureCookies;
@@ -53,9 +55,23 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody @Valid RegisterRequest request, HttpServletRequest httpRequest) {
-        authService.register(request, clientIp(httpRequest));
-        return ResponseEntity.ok("OTP đã được gửi tới email của bạn. Vui lòng xác thực để hoàn tất đăng ký.");
+    public ResponseEntity<RegisterResponse> register(@RequestBody @Valid RegisterRequest request, HttpServletRequest httpRequest) {
+        if (featureFlagService.isOtpRegistrationEnabled()) {
+            authService.register(request, clientIp(httpRequest));
+            return ResponseEntity.ok(RegisterResponse.builder()
+                    .requiresOtp(true)
+                    .message("OTP đã được gửi tới email của bạn. Vui lòng xác thực để hoàn tất đăng ký.")
+                    .build());
+        } else {
+            AuthResponse authResponse = authService.registerDirect(request, clientIp(httpRequest));
+            ResponseCookie cookie = createSecureCookie(authResponse.getRefreshToken());
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .body(RegisterResponse.builder()
+                            .requiresOtp(false)
+                            .accessToken(authResponse.getAccessToken())
+                            .build());
+        }
     }
 
     @PostMapping("/verify-otp")

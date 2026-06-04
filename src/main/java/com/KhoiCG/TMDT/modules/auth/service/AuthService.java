@@ -84,6 +84,28 @@ public class AuthService {
     }
 
     @Transactional
+    public AuthResponse registerDirect(RegisterRequest request, String clientIp) {
+        authRegistrationRateLimiter.assertRegisterAllowed(request.getEmail(), clientIp);
+        if (userRepo.existsByEmail(request.getEmail())) {
+            throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_USED", "Email đã được sử dụng.");
+        }
+        User user = User.builder()
+                .name(request.getName())
+                .email(request.getEmail())
+                .role(Role.USER)
+                .build();
+        UserProvider localProvider = UserProvider.builder()
+                .user(user)
+                .provider(AuthProvider.LOCAL)
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .build();
+        user.getProviders().add(localProvider);
+        User savedUser = userRepo.save(user);
+        eventPublisher.publishEvent(new UserRegisteredEvent(savedUser));
+        return buildAuthResponse(savedUser);
+    }
+
+    @Transactional
     public AuthResponse verifyRegistrationOtp(VerifyOtpRequest request, String clientIp) {
         authRegistrationRateLimiter.assertVerifyOtpAllowed(clientIp);
 
