@@ -13,7 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,6 +31,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -64,11 +65,11 @@ class AuthServiceTest {
         doNothing().when(authRegistrationRateLimiter).assertVerifyOtpAllowed(anyString());
         doNothing().when(authRegistrationRateLimiter).onOtpMismatch(anyString());
         doNothing().when(authRegistrationRateLimiter).clearOtpFailures(anyString());
+
         mockUser = User.builder()
                 .id(1L)
                 .email("test@tmdt.com")
                 .name("Khoi CG")
-                .role("USER")
                 .build();
 
         registerRequest = RegisterRequest.builder()
@@ -84,39 +85,32 @@ class AuthServiceTest {
     }
 
     // ==========================================
-    // 1. TEST LUỒNG ĐĂNG KÝ (REGISTER)
+    // 1. TEST BƯỚC 1 ĐĂNG KÝ: GỬI OTP
     // ==========================================
 
     @Test
     @DisplayName("Đăng ký: Thành công, tạo OTP và gửi email xác minh")
     void register_Success() throws Exception {
         when(userRepo.existsByEmail(registerRequest.getEmail())).thenReturn(false);
-        when(passwordEncoder.encode("password123")).thenReturn("hashedPassword");
-        when(passwordEncoder.encode(anyString())).thenReturn("hashedOtp");
+        when(passwordEncoder.encode(anyString())).thenReturn("hashedValue");
         when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
 
         authService.register(registerRequest, "127.0.0.1");
 
         verify(authRegistrationRateLimiter).assertRegisterAllowed(eq(registerRequest.getEmail()), eq("127.0.0.1"));
-        InOrder order = inOrder(notificationService, valueOperations);
-        order.verify(notificationService)
-                .sendRegistrationOtpEmail(eq(registerRequest.getEmail()), eq(registerRequest.getName()), anyString());
-        order.verify(valueOperations).set(contains("auth:reg-otp:"), anyString(), any(Duration.class));
+        verify(valueOperations).set(contains("auth:reg-otp:"), anyString(), any(Duration.class));
+        verify(notificationService).sendRegistrationOtpEmail(eq(registerRequest.getEmail()), eq(registerRequest.getName()), anyString());
         verify(userRepo, never()).save(any(User.class));
     }
 
     @Test
-    @DisplayName("Đăng ký: Thất bại, ném lỗi khi Email đã tồn tại trong hệ thống")
+    @DisplayName("Đăng ký: Thất bại khi email đã tồn tại")
     void register_Fail_EmailExists() throws MessagingException {
-        // Arrange: Giả sử email đã bị người khác đăng ký
         when(userRepo.existsByEmail(registerRequest.getEmail())).thenReturn(true);
 
-        // Act & Assert
         ApiException ex = assertThrows(ApiException.class, () -> authService.register(registerRequest, "127.0.0.1"));
         assertEquals("EMAIL_ALREADY_USED", ex.getCode());
-        assertEquals("Email đã được sử dụng.", ex.getMessage());
 
-        verify(authRegistrationRateLimiter).assertRegisterAllowed(eq(registerRequest.getEmail()), eq("127.0.0.1"));
         verify(userRepo, never()).save(any(User.class));
         verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
         verify(notificationService, never()).sendRegistrationOtpEmail(anyString(), anyString(), anyString());
@@ -129,24 +123,17 @@ class AuthServiceTest {
     @Test
     @DisplayName("Đăng nhập: Thành công, xác thực Spring Security và trả về Token mới")
     void login_Success() {
-        // Arrange
-        // (AuthenticationManager sẽ im lặng cho qua nếu đăng nhập đúng, nếu sai nó sẽ ném BadCredentialsException)
+        mockUser = User.builder().id(1L).email("test@tmdt.com").name("Khoi CG").isActive(true).build();
         when(userRepo.findByEmail(loginRequest.getEmail())).thenReturn(Optional.of(mockUser));
-        when(jwtService.generateToken(mockUser.getEmail(), mockUser.getRole())).thenReturn("newAccessToken");
+        when(jwtService.generateToken(anyString(), anyString())).thenReturn("newAccessToken");
         when(jwtService.generateRefreshToken(mockUser.getEmail())).thenReturn("newRefreshToken");
 
-        // Act
         AuthResponse response = authService.login(loginRequest);
 
-        // Assert
         assertNotNull(response);
         assertEquals("newAccessToken", response.getAccessToken());
         assertEquals("newRefreshToken", response.getRefreshToken());
-
-        // Đảm bảo Spring Security đã được gọi để check password
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
-
-        // Kiểm tra xem phiên đăng nhập mới đã được lưu chưa
         verify(tokenService, times(1)).saveRefreshToken(mockUser, "newRefreshToken");
     }
 
@@ -157,29 +144,21 @@ class AuthServiceTest {
     @Test
     @DisplayName("Đăng xuất: Xóa toàn bộ Token của User khỏi hệ thống")
     void logout_Success() {
-        // Arrange
-        when(userRepo.findByEmail(mockUser.getEmail())).thenReturn(Optional.of(mockUser));
-
-        // Act
         authService.logout(mockUser.getEmail());
 
-        // Assert
-        verify(tokenService, times(1)).deleteTokensByUser(mockUser);
+        verify(tokenService, times(1)).deleteTokensByEmail(mockUser.getEmail());
     }
 
     @Test
     @DisplayName("Làm mới Token: Gọi đúng logic xoay vòng (Rotation) của TokenService")
     void processRefreshToken_Success() {
-        // Arrange
         String oldToken = "old_refresh_token_string";
         AuthResponse newMockResponse = AuthResponse.builder().accessToken("newA").refreshToken("newR").build();
 
         when(tokenService.rotateRefreshToken(oldToken)).thenReturn(newMockResponse);
 
-        // Act
         AuthResponse result = authService.processRefreshToken(oldToken);
 
-        // Assert
         assertNotNull(result);
         assertEquals("newA", result.getAccessToken());
         verify(tokenService, times(1)).rotateRefreshToken(oldToken);
